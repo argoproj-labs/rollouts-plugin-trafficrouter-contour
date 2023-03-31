@@ -1,12 +1,13 @@
 package main
 
 import (
+	"os"
+
 	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/plugin"
-	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/utils"
 
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
 	goPlugin "github.com/hashicorp/go-plugin"
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 )
 
 // handshakeConfigs are used to just do a basic handshake between
@@ -19,18 +20,33 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 	MagicCookieValue: "trafficrouter",
 }
 
-func main() {
-	logCtx := log.WithFields(log.Fields{"plugin": "trafficrouter"})
-	utils.SetLogLevel("debug")
-	log.SetFormatter(utils.CreateFormatter("text"))
-	rpcPluginImp := &plugin.RpcPlugin{
-		LogCtx: logCtx,
+func initLogger() {
+	lvl := &slog.LevelVar{}
+	lvl.Set(slog.LevelDebug)
+	opts := slog.HandlerOptions{
+		Level: lvl,
 	}
+
+	attrs := []slog.Attr{
+		slog.String("plugin", "trafficrouter"),
+		slog.String("vendor", "contour"),
+	}
+	opts.NewTextHandler(os.Stderr).WithAttrs(attrs)
+
+	l := slog.New(opts.NewTextHandler(os.Stderr).WithAttrs(attrs))
+	slog.SetDefault(l)
+}
+
+func main() {
+	initLogger()
+	rpcPluginImp := &plugin.RpcPlugin{}
+
 	//  pluginMap is the map of plugins we can dispense.
 	var pluginMap = map[string]goPlugin.Plugin{
 		"RpcTrafficRouterPlugin": &rolloutsPlugin.RpcTrafficRouterPlugin{Impl: rpcPluginImp},
 	}
-	logCtx.Debug("message from plugin", "foo", "bar")
+
+	slog.Info("the plugin is running")
 	goPlugin.Serve(&goPlugin.ServeConfig{
 		HandshakeConfig: handshakeConfig,
 		Plugins:         pluginMap,

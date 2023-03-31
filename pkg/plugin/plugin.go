@@ -6,140 +6,156 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/utils"
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
-	"github.com/sirupsen/logrus"
+	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
+	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/gateway-api/apis/v1beta1"
-	gatewayApiClientset "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
-	gatewayApiv1beta1 "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned/typed/apis/v1beta1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // Type holds this controller type
 const Type = "Contour"
 
-const GatewayAPIUpdateError = "GatewayAPIUpdateError"
+func getKubeConfig() (*rest.Config, error) {
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	// if you want to change the loading rules (which files in which order), you can do so here
+	configOverrides := &clientcmd.ConfigOverrides{}
+	// if you want to change override values or bind them to flags, there are methods to help you
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
+	config, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, pluginTypes.RpcError{ErrorString: err.Error()}
+	}
+	return config, nil
+}
 
 type RpcPlugin struct {
-	IsTest               bool
-	LogCtx               *logrus.Entry
-	Client               *gatewayApiClientset.Clientset
-	UpdatedMockHttpRoute *v1beta1.HTTPRoute
-	HttpRouteClient      gatewayApiv1beta1.HTTPRouteInterface
+	IsTest        bool
+	dynamicClient dynamic.Interface
 }
 
 type ContourTrafficRouting struct {
-	// HTTPRoute refers to the name of the HTTPRoute used to route traffic to the
+	// HTTPProxy refers to the name of the HTTPProxy used to route traffic to the
 	// service
 	HTTPProxy string `json:"httpProxy" protobuf:"bytes,1,name=httpProxy"`
 	Namespace string `json:"namespace" protobuf:"bytes,2,name=namespace"`
+	Stable    string `json:"stable" protobuf:"bytes,3,name=stable"`
+	Canary    string `json:"canary" protobuf:"bytes,4,name=canary"`
 }
 
-func (r *RpcPlugin) InitPlugin() pluginTypes.RpcError {
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+func must1[T any](t T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func (r *RpcPlugin) InitPlugin() (re pluginTypes.RpcError) {
+	defer func() {
+		if e := recover(); e != nil {
+			re.ErrorString = e.(error).Error()
+		}
+	}()
+
+	//TODO:
 	if r.IsTest {
-		return pluginTypes.RpcError{}
+		//r.dynamicClient = must1(dynamic.NewForConfig(cfg))
+	} else {
+		cfg := must1(getKubeConfig())
+		r.dynamicClient = must1(dynamic.NewForConfig(cfg))
 	}
-	kubeConfig, err := utils.GetKubeConfig()
-	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
-		}
-	}
-	clientset, err := gatewayApiClientset.NewForConfig(kubeConfig)
-	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
-		}
-	}
-	r.Client = clientset
-	return pluginTypes.RpcError{}
-}
 
+	return
+}
 func (r *RpcPlugin) UpdateHash(rollout *v1alpha1.Rollout, canaryHash, stableHash string, additionalDestinations []v1alpha1.WeightDestination) pluginTypes.RpcError {
 	return pluginTypes.RpcError{}
 }
 
-func (r *RpcPlugin) SetWeight(rollout *v1alpha1.Rollout, desiredWeight int32, additionalDestinations []v1alpha1.WeightDestination) pluginTypes.RpcError {
-	ctx := context.TODO()
-	contourConfig := ContourTrafficRouting{}
-	err := json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &contourConfig)
-	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
+func (r *RpcPlugin) SetWeight(
+	rollout *v1alpha1.Rollout,
+	desiredWeight int32,
+	additionalDestinations []v1alpha1.WeightDestination) (re pluginTypes.RpcError) {
+	defer func() {
+		if e := recover(); e != nil {
+			re.ErrorString = e.(error).Error()
 		}
-	}
-	httpRouteClient := r.HttpRouteClient
-	if !r.IsTest {
-		gatewayV1beta1 := r.Client.GatewayV1beta1()
-		httpRouteClient = gatewayV1beta1.HTTPRoutes(contourConfig.Namespace)
-	}
-	httpRoute, err := httpRouteClient.Get(ctx, contourConfig.HTTPProxy, metav1.GetOptions{})
+	}()
+
+	ctx := context.Background()
+
+	ctr := ContourTrafficRouting{}
+	must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr))
+
+	slog.Debug("the plugin config",
+		slog.String("ns", ctr.Namespace),
+		slog.String("httpproxy", ctr.HTTPProxy),
+		slog.Any("weight", desiredWeight))
+
+	var httpProxy contourv1.HTTPProxy
+	unstr := must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Get(ctx, ctr.HTTPProxy, metav1.GetOptions{}))
+	must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
+
+	canarySvcName := ctr.Canary
+	stableSvcName := ctr.Stable
+
+	slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
+
+	// TODO: filter by condition(s)
+	services := must1(getServiceList(httpProxy.Spec.Routes))
+	canarySvc := must1(getService(canarySvcName, services))
+	stableSvc := must1(getService(stableSvcName, services))
+
+	canarySvc.Weight = int64(desiredWeight)
+	stableSvc.Weight = 100 - canarySvc.Weight
+
+	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+
+	m := must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
+	_, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
 	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
-		}
+		slog.Error("update HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
+		must(err)
 	}
-	canaryServiceName := rollout.Spec.Strategy.Canary.CanaryService
-	stableServiceName := rollout.Spec.Strategy.Canary.StableService
-	rules := httpRoute.Spec.Rules
-	backendRefs, err := getBackendRefList(rules)
-	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
-		}
-	}
-	canaryBackendRef, err := getBackendRef(canaryServiceName, backendRefs)
-	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
-		}
-	}
-	canaryBackendRef.Weight = &desiredWeight
-	stableBackendRef, err := getBackendRef(stableServiceName, backendRefs)
-	if err != nil {
-		return pluginTypes.RpcError{
-			ErrorString: err.Error(),
-		}
-	}
-	restWeight := 100 - desiredWeight
-	stableBackendRef.Weight = &restWeight
-	updatedHttpRoute, err := httpRouteClient.Update(ctx, httpRoute, metav1.UpdateOptions{})
-	if r.IsTest {
-		r.UpdatedMockHttpRoute = updatedHttpRoute
-	}
-	if err != nil {
-		msg := fmt.Sprintf("Error updating Gateway API %q: %s", httpRoute.GetName(), err)
-		r.LogCtx.Error(msg)
-	}
-	return pluginTypes.RpcError{}
+
+	slog.Debug("update HTTPProxy is successfully")
+	return
 }
 
-func getBackendRef(serviceName string, backendRefs []v1beta1.HTTPBackendRef) (*v1beta1.HTTPBackendRef, error) {
-	var selectedService *v1beta1.HTTPBackendRef
-	for i := 0; i < len(backendRefs); i++ {
-		service := &backendRefs[i]
-		nameOfCurrentService := string(service.Name)
-		if nameOfCurrentService == serviceName {
-			selectedService = service
+func getService(name string, services []contourv1.Service) (*contourv1.Service, error) {
+	var selected *contourv1.Service
+	for i := 0; i < len(services); i++ {
+
+		svc := &services[i]
+		if svc.Name == name {
+			selected = svc
 			break
 		}
 	}
-	if selectedService == nil {
-		return nil, errors.New("service was not found in httpRoute")
+	if selected == nil {
+		return nil, fmt.Errorf("the service: %s is not found in HTTPProxy", name)
 	}
-	return selectedService, nil
+	return selected, nil
 }
 
-func getBackendRefList(rules []v1beta1.HTTPRouteRule) ([]v1beta1.HTTPBackendRef, error) {
-	for _, rule := range rules {
-		if rule.BackendRefs == nil {
+func getServiceList(routes []contourv1.Route) ([]contourv1.Service, error) {
+	for _, r := range routes {
+		if r.Services == nil {
 			continue
 		}
-		backendRefs := rule.BackendRefs
-		return backendRefs, nil
+		return r.Services, nil
 	}
-	return nil, errors.New("backendRefs was not found in httpRoute")
+	return nil, errors.New("the services are not found in HTTPProxy")
 }
 
 func (r *RpcPlugin) SetHeaderRoute(rollout *v1alpha1.Rollout, headerRouting *v1alpha1.SetHeaderRoute) pluginTypes.RpcError {
