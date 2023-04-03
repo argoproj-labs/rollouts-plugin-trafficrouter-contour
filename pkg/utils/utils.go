@@ -1,15 +1,15 @@
 package utils
 
 import (
-	"strings"
+	"os"
 
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
-	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slog"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-func GetKubeConfig() (*rest.Config, error) {
+func NewKubeConfig() (*rest.Config, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	// if you want to change the loading rules (which files in which order), you can do so here
 	configOverrides := &clientcmd.ConfigOverrides{}
@@ -22,29 +22,32 @@ func GetKubeConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-func SetLogLevel(logLevel string) {
-	level, err := log.ParseLevel(logLevel)
+func Must(err error) {
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
-	log.SetLevel(level)
 }
 
-func CreateFormatter(logFormat string) log.Formatter {
-	var formatType log.Formatter
-	switch strings.ToLower(logFormat) {
-	case "json":
-		formatType = &log.JSONFormatter{}
-	case "text":
-		formatType = &log.TextFormatter{
-			FullTimestamp: true,
-		}
-	default:
-		log.Infof("Unknown format: %s. Using text logformat", logFormat)
-		formatType = &log.TextFormatter{
-			FullTimestamp: true,
-		}
+func Must1[T any](t T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return t
+}
+
+func InitLogger() {
+	lvl := &slog.LevelVar{}
+	lvl.Set(slog.LevelDebug)
+	opts := slog.HandlerOptions{
+		Level: lvl,
 	}
 
-	return formatType
+	attrs := []slog.Attr{
+		slog.String("plugin", "trafficrouter"),
+		slog.String("vendor", "contour"),
+	}
+	opts.NewTextHandler(os.Stderr).WithAttrs(attrs)
+
+	l := slog.New(opts.NewTextHandler(os.Stderr).WithAttrs(attrs))
+	slog.SetDefault(l)
 }

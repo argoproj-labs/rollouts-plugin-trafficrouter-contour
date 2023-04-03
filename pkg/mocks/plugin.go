@@ -1,53 +1,35 @@
 package mocks
 
-//const (
-//	StableServiceName = "argo-rollouts-stable-service"
-//	CanaryServiceName = "argo-rollouts-canary-service"
-//	HttpRouteName     = "argo-rollouts-http-route"
-//	Namespace         = "default"
-//)
-//
-//var (
-//	port         = v1beta1.PortNumber(80)
-//	weight int32 = 0
-//)
-//
-//var HttpRouteObj = v1beta1.HTTPRoute{
-//	ObjectMeta: metav1.ObjectMeta{
-//		Name:      HttpRouteName,
-//		Namespace: Namespace,
-//	},
-//	Spec: v1beta1.HTTPRouteSpec{
-//		CommonRouteSpec: v1beta1.CommonRouteSpec{
-//			ParentRefs: []v1beta1.ParentReference{
-//				{
-//					Name: "argo-rollouts-contour",
-//				},
-//			},
-//		},
-//		Rules: []v1beta1.HTTPRouteRule{
-//			{
-//				BackendRefs: []v1beta1.HTTPBackendRef{
-//					{
-//						BackendRef: v1beta1.BackendRef{
-//							BackendObjectReference: v1beta1.BackendObjectReference{
-//								Name: StableServiceName,
-//								Port: &port,
-//							},
-//							Weight: &weight,
-//						},
-//					},
-//					{
-//						BackendRef: v1beta1.BackendRef{
-//							BackendObjectReference: v1beta1.BackendObjectReference{
-//								Name: CanaryServiceName,
-//								Port: &port,
-//							},
-//							Weight: &weight,
-//						},
-//					},
-//				},
-//			},
-//		},
-//	},
-//}
+import (
+	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	Namespace         = "default"
+	StableServiceName = "argo-rollouts-stable-service"
+	CanaryServiceName = "argo-rollouts-canary-service"
+	HTTPProxyName     = "argo-rollouts-httpproxy"
+)
+
+var HTTPProxyObj = contourv1.HTTPProxy{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      HTTPProxyName,
+		Namespace: Namespace,
+	},
+	Spec: contourv1.HTTPProxySpec{
+		Routes: []contourv1.Route{
+			{
+				Services: []contourv1.Service{
+					{
+						Name:   StableServiceName,
+						Weight: 100,
+					},
+					{
+						Name: CanaryServiceName,
+					},
+				},
+			},
+		},
+	},
+}
