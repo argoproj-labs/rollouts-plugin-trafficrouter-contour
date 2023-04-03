@@ -1,9 +1,8 @@
 package main
 
 import (
-	"os"
-
 	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/plugin"
+	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/utils"
 
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
 	goPlugin "github.com/hashicorp/go-plugin"
@@ -20,25 +19,9 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 	MagicCookieValue: "trafficrouter",
 }
 
-func initLogger() {
-	lvl := &slog.LevelVar{}
-	lvl.Set(slog.LevelDebug)
-	opts := slog.HandlerOptions{
-		Level: lvl,
-	}
-
-	attrs := []slog.Attr{
-		slog.String("plugin", "trafficrouter"),
-		slog.String("vendor", "contour"),
-	}
-	opts.NewTextHandler(os.Stderr).WithAttrs(attrs)
-
-	l := slog.New(opts.NewTextHandler(os.Stderr).WithAttrs(attrs))
-	slog.SetDefault(l)
-}
-
 func main() {
-	initLogger()
+	utils.InitLogger()
+
 	rpcPluginImp := &plugin.RpcPlugin{}
 
 	//  pluginMap is the map of plugins we can dispense.

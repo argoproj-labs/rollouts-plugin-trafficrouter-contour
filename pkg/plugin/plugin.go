@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/utils"
+
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
@@ -14,29 +16,15 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 // Type holds this controller type
 const Type = "Contour"
 
-func getKubeConfig() (*rest.Config, error) {
-	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
-	// if you want to change the loading rules (which files in which order), you can do so here
-	configOverrides := &clientcmd.ConfigOverrides{}
-	// if you want to change override values or bind them to flags, there are methods to help you
-	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loadingRules, configOverrides)
-	config, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return nil, pluginTypes.RpcError{ErrorString: err.Error()}
-	}
-	return config, nil
-}
-
 type RpcPlugin struct {
-	IsTest        bool
-	dynamicClient dynamic.Interface
+	IsTest               bool
+	dynamicClient        dynamic.Interface
+	UpdatedMockHTTPProxy *contourv1.HTTPProxy
 }
 
 type ContourTrafficRouting struct {
@@ -44,21 +32,6 @@ type ContourTrafficRouting struct {
 	// service
 	HTTPProxy string `json:"httpProxy" protobuf:"bytes,1,name=httpProxy"`
 	Namespace string `json:"namespace" protobuf:"bytes,2,name=namespace"`
-	Stable    string `json:"stable" protobuf:"bytes,3,name=stable"`
-	Canary    string `json:"canary" protobuf:"bytes,4,name=canary"`
-}
-
-func must(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func must1[T any](t T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return t
 }
 
 func (r *RpcPlugin) InitPlugin() (re pluginTypes.RpcError) {
@@ -68,13 +41,12 @@ func (r *RpcPlugin) InitPlugin() (re pluginTypes.RpcError) {
 		}
 	}()
 
-	//TODO:
 	if r.IsTest {
-		//r.dynamicClient = must1(dynamic.NewForConfig(cfg))
-	} else {
-		cfg := must1(getKubeConfig())
-		r.dynamicClient = must1(dynamic.NewForConfig(cfg))
+		return
 	}
+
+	cfg := utils.Must1(utils.NewKubeConfig())
+	r.dynamicClient = utils.Must1(dynamic.NewForConfig(cfg))
 
 	return
 }
@@ -86,49 +58,60 @@ func (r *RpcPlugin) SetWeight(
 	rollout *v1alpha1.Rollout,
 	desiredWeight int32,
 	additionalDestinations []v1alpha1.WeightDestination) (re pluginTypes.RpcError) {
+
 	defer func() {
 		if e := recover(); e != nil {
 			re.ErrorString = e.(error).Error()
 		}
 	}()
 
+	if rollout == nil || rollout.Spec.Strategy.Canary == nil ||
+		rollout.Spec.Strategy.Canary.StableService == "" ||
+		rollout.Spec.Strategy.Canary.CanaryService == "" {
+		utils.Must(errors.New("illegal parameter(s)"))
+	}
+
 	ctx := context.Background()
 
 	ctr := ContourTrafficRouting{}
-	must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr))
-
-	slog.Debug("the plugin config",
-		slog.String("ns", ctr.Namespace),
-		slog.String("httpproxy", ctr.HTTPProxy),
-		slog.Any("weight", desiredWeight))
+	utils.Must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr))
 
 	var httpProxy contourv1.HTTPProxy
-	unstr := must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Get(ctx, ctr.HTTPProxy, metav1.GetOptions{}))
-	must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
+	unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Get(ctx, ctr.HTTPProxy, metav1.GetOptions{}))
+	utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
 
-	canarySvcName := ctr.Canary
-	stableSvcName := ctr.Stable
+	canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
+	stableSvcName := rollout.Spec.Strategy.Canary.StableService
 
 	slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
 
 	// TODO: filter by condition(s)
-	services := must1(getServiceList(httpProxy.Spec.Routes))
-	canarySvc := must1(getService(canarySvcName, services))
-	stableSvc := must1(getService(stableSvcName, services))
+	services := utils.Must1(getServiceList(httpProxy.Spec.Routes))
+	canarySvc := utils.Must1(getService(canarySvcName, services))
+	stableSvc := utils.Must1(getService(stableSvcName, services))
+
+	slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
 	canarySvc.Weight = int64(desiredWeight)
 	stableSvc.Weight = 100 - canarySvc.Weight
 
 	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
-	m := must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
-	_, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
+	m := utils.Must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
+	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
 	if err != nil {
-		slog.Error("update HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
-		must(err)
+		slog.Error("update the HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
+		utils.Must(err)
 	}
 
-	slog.Debug("update HTTPProxy is successfully")
+	if r.IsTest {
+
+		proxy := contourv1.HTTPProxy{}
+		utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(updated.UnstructuredContent(), &proxy))
+		r.UpdatedMockHTTPProxy = &proxy
+	}
+
+	slog.Info("update HTTPProxy is successfully")
 	return
 }
 
