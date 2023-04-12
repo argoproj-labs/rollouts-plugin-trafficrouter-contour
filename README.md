@@ -11,7 +11,8 @@ Contour supports multiple configuration APIs in order to meet the needs of as ma
 
 ## TODO: How to integrate Contour with Argo Rollouts
 NOTES:
-   ***The file as follows just for illustrative purposes only, please do not use directly!!!***
+    ***1.The file as follows just for illustrative purposes only, please do not use directly!!!***
+    ***2. The argo-rollouts >= [v1.5.0-rc1](https://github.com/argoproj/argo-rollouts/releases/tag/v1.5.0-rc1)***
 Steps:
  1. Run the `yaml/rbac.yaml` to add the role for operate on the `HTTPProxy`.
  2. Build this plugin.
@@ -84,6 +85,8 @@ Steps:
                 name: canary
 
         ```
+    
+  6. Enjoy It.
 
 
 ## TODO: Contribution
