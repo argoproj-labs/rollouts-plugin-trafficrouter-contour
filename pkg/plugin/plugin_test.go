@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/mocks"
-	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/utils"
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/mocks"
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"

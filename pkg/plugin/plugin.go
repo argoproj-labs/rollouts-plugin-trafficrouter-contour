@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin/pkg/utils"
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"

@@ -1,7 +1,7 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: rollouts-contour-trafficrouter-plugin
+  name: rollouts-plugin-trafficrouter-contour
 rules:
   - verbs:
       - get
@@ -17,7 +17,7 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: rollouts-contour-trafficrouter-plugin
+  name: rollouts-plugin-trafficrouter-contour
   labels:
     app.kubernetes.io/component: rollouts-controller
     app.kubernetes.io/name: argo-rollouts
@@ -29,4 +29,4 @@ subjects:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: rollouts-contour-trafficrouter-plugin
+  name: rollouts-plugin-trafficrouter-contour
