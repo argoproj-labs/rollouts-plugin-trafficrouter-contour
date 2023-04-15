@@ -1,4 +1,4 @@
-module github.com/argoproj-labs/rollouts-contour-trafficrouter-plugin
+module github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour
 
 go 1.19
 
