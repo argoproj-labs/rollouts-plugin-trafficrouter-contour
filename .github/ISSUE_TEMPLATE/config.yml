@@ -1,0 +1,6 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Questions & Help
+    url: https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/issues
+    about: Ask a question or start a discussion about "rollouts-plugin-trafficrouter-contour"
