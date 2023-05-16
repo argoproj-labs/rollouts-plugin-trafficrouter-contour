@@ -31,7 +31,6 @@ type ContourTrafficRouting struct {
 	// HTTPProxy refers to the name of the HTTPProxy used to route traffic to the
 	// service
 	HTTPProxy string `json:"httpProxy" protobuf:"bytes,1,name=httpProxy"`
-	Namespace string `json:"namespace" protobuf:"bytes,2,name=namespace"`
 }
 
 func (r *RpcPlugin) InitPlugin() (re pluginTypes.RpcError) {
@@ -77,7 +76,7 @@ func (r *RpcPlugin) SetWeight(
 	utils.Must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr))
 
 	var httpProxy contourv1.HTTPProxy
-	unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Get(ctx, ctr.HTTPProxy, metav1.GetOptions{}))
+	unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Get(ctx, ctr.HTTPProxy, metav1.GetOptions{}))
 	utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
 
 	canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
@@ -98,7 +97,7 @@ func (r *RpcPlugin) SetWeight(
 	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
 	m := utils.Must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
-	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
+	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
 	if err != nil {
 		slog.Error("update the HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
 		utils.Must(err)
