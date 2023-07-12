@@ -28,10 +28,9 @@ type RpcPlugin struct {
 }
 
 type ContourTrafficRouting struct {
-	// HTTPProxy refers to the name of the HTTPProxy used to route traffic to the
-	// service
-	HTTPProxy string `json:"httpProxy" protobuf:"bytes,1,name=httpProxy"`
-	Namespace string `json:"namespace" protobuf:"bytes,2,name=namespace"`
+	// HTTPProxies is an array of strings which refer to the names of the HTTPProxies used to route
+	// traffic to the service
+	HTTPProxies []string `json:"httpProxies" protobuf:"bytes,1,name=httpProxies"`
 }
 
 func (r *RpcPlugin) InitPlugin() (re pluginTypes.RpcError) {
@@ -58,7 +57,6 @@ func (r *RpcPlugin) SetWeight(
 	rollout *v1alpha1.Rollout,
 	desiredWeight int32,
 	additionalDestinations []v1alpha1.WeightDestination) (re pluginTypes.RpcError) {
-
 	defer func() {
 		if e := recover(); e != nil {
 			re.ErrorString = e.(error).Error()
@@ -76,42 +74,45 @@ func (r *RpcPlugin) SetWeight(
 	ctr := ContourTrafficRouting{}
 	utils.Must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr))
 
-	var httpProxy contourv1.HTTPProxy
-	unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Get(ctx, ctr.HTTPProxy, metav1.GetOptions{}))
-	utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
+	for _, proxy := range ctr.HTTPProxies {
+		slog.Debug("updating proxy", slog.String("proxy", proxy))
 
-	canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
-	stableSvcName := rollout.Spec.Strategy.Canary.StableService
+		var httpProxy contourv1.HTTPProxy
+		unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Get(ctx, proxy, metav1.GetOptions{}))
+		utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
 
-	slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
+		canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
+		stableSvcName := rollout.Spec.Strategy.Canary.StableService
 
-	// TODO: filter by condition(s)
-	svcMap := getServiceMap(&httpProxy)
-	canarySvc := utils.Must1(getService(canarySvcName, svcMap))
-	stableSvc := utils.Must1(getService(stableSvcName, svcMap))
+		slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
 
-	slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+		// TODO: filter by condition(s)
+		svcMap := getServiceMap(&httpProxy)
+		canarySvc := utils.Must1(getService(canarySvcName, svcMap))
+		stableSvc := utils.Must1(getService(stableSvcName, svcMap))
 
-	canarySvc.Weight = int64(desiredWeight)
-	stableSvc.Weight = 100 - canarySvc.Weight
+		slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
-	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+		canarySvc.Weight = int64(desiredWeight)
+		stableSvc.Weight = 100 - canarySvc.Weight
 
-	m := utils.Must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
-	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(ctr.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
-	if err != nil {
-		slog.Error("update the HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
-		utils.Must(err)
+		slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+
+		m := utils.Must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
+		updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
+		if err != nil {
+			slog.Error("update the HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
+			utils.Must(err)
+		}
+
+		if r.IsTest {
+			proxy := contourv1.HTTPProxy{}
+			utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(updated.UnstructuredContent(), &proxy))
+			r.UpdatedMockHTTPProxy = &proxy
+		}
+
+		slog.Info("successfully updated HTTPProxy", slog.String("httpproxy", proxy))
 	}
-
-	if r.IsTest {
-
-		proxy := contourv1.HTTPProxy{}
-		utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(updated.UnstructuredContent(), &proxy))
-		r.UpdatedMockHTTPProxy = &proxy
-	}
-
-	slog.Info("update HTTPProxy is successfully")
 	return
 }
 

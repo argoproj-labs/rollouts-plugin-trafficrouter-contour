@@ -137,8 +137,7 @@ func TestRunSuccessfully(t *testing.T) {
 
 func newRollout(stableSvc, canarySvc, httpProxyName string) *v1alpha1.Rollout {
 	contourConfig := ContourTrafficRouting{
-		HTTPProxy: httpProxyName,
-		Namespace: "default",
+		HTTPProxies: []string{httpProxyName},
 	}
 	encodedContourConfig, err := json.Marshal(contourConfig)
 	if err != nil {
