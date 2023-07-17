@@ -87,9 +87,9 @@ func (r *RpcPlugin) SetWeight(
 		slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
 
 		// TODO: filter by condition(s)
-		services := utils.Must1(getServiceList(httpProxy.Spec.Routes))
-		canarySvc := utils.Must1(getService(canarySvcName, services))
-		stableSvc := utils.Must1(getService(stableSvcName, services))
+		svcMap := getServiceMap(&httpProxy)
+		canarySvc := utils.Must1(getService(canarySvcName, svcMap))
+		stableSvc := utils.Must1(getService(stableSvcName, svcMap))
 
 		slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
@@ -116,30 +116,23 @@ func (r *RpcPlugin) SetWeight(
 	return
 }
 
-func getService(name string, services []contourv1.Service) (*contourv1.Service, error) {
-	var selected *contourv1.Service
-	for i := 0; i < len(services); i++ {
-
-		svc := &services[i]
-		if svc.Name == name {
-			selected = svc
-			break
-		}
-	}
-	if selected == nil {
+func getService(name string, svcMap map[string]*contourv1.Service) (*contourv1.Service, error) {
+	svc, ok := svcMap[name]
+	if !ok {
 		return nil, fmt.Errorf("the service: %s is not found in HTTPProxy", name)
 	}
-	return selected, nil
+	return svc, nil
 }
 
-func getServiceList(routes []contourv1.Route) ([]contourv1.Service, error) {
-	for _, r := range routes {
-		if r.Services == nil {
-			continue
+func getServiceMap(httpProxy *contourv1.HTTPProxy) map[string]*contourv1.Service {
+	svcMap := make(map[string]*contourv1.Service)
+	for _, r := range httpProxy.Spec.Routes {
+		for i := range r.Services {
+			s := &r.Services[i]
+			svcMap[s.Name] = s
 		}
-		return r.Services, nil
 	}
-	return nil, errors.New("the services are not found in HTTPProxy")
+	return svcMap
 }
 
 func (r *RpcPlugin) SetHeaderRoute(rollout *v1alpha1.Rollout, headerRouting *v1alpha1.SetHeaderRoute) pluginTypes.RpcError {
