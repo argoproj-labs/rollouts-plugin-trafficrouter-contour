@@ -7,17 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/mocks"
-	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
-
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
+	"github.com/argoproj/argo-rollouts/utils/plugin/types"
 	goPlugin "github.com/hashicorp/go-plugin"
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakeDynClient "k8s.io/client-go/dynamic/fake"
+
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/mocks"
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
 )
 
 var testHandshake = goPlugin.HandshakeConfig{
@@ -38,7 +39,7 @@ func TestRunSuccessfully(t *testing.T) {
 	}
 
 	_ = b.AddToScheme(s)
-	dynClient := fakeDynClient.NewSimpleDynamicClient(s, &mocks.HTTPProxyObj)
+	dynClient := fakeDynClient.NewSimpleDynamicClient(s, mocks.MakeObjects()...)
 	rpcPluginImp := &RpcPlugin{
 		IsTest:        true,
 		dynamicClient: dynClient,
@@ -102,21 +103,15 @@ func TestRunSuccessfully(t *testing.T) {
 	}
 
 	pluginInstance := raw.(*rolloutsPlugin.TrafficRouterPluginRPC)
-	err = pluginInstance.InitPlugin()
-	if err.Error() != "" {
+	if err := pluginInstance.InitPlugin(); err.HasError() {
 		t.Fail()
 	}
+
 	t.Run("SetWeight", func(t *testing.T) {
-		var desiredWeight int32 = 30
-
 		rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, mocks.HTTPProxyName)
+		desiredWeight := int32(30)
 
-		re := pluginInstance.SetWeight(
-			rollout,
-			desiredWeight,
-			[]v1alpha1.WeightDestination{})
-
-		if re.HasError() {
+		if err := pluginInstance.SetWeight(rollout, desiredWeight, []v1alpha1.WeightDestination{}); err.HasError() {
 			t.Fail()
 		}
 
@@ -128,6 +123,26 @@ func TestRunSuccessfully(t *testing.T) {
 		if desiredWeight != int32(svcs[1].Weight) {
 			t.Fail()
 		}
+	})
+
+	t.Run("VerifyWeight", func(t *testing.T) {
+		verifyWeight := func(httpProxyName string, desiredWeight int32, expected types.RpcVerified) {
+			rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, httpProxyName)
+
+			actual, err := pluginInstance.VerifyWeight(rollout, desiredWeight, []v1alpha1.WeightDestination{})
+			if err.HasError() {
+				t.Fail()
+			}
+			if actual != expected {
+				t.Fail()
+			}
+		}
+
+		verifyWeight(mocks.ValidHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.Verified)
+		verifyWeight(mocks.ValidHTTPProxyName, mocks.HTTPProxyDesiredWeight+10, types.NotVerified)
+		verifyWeight(mocks.InvalidHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
+		verifyWeight(mocks.OutdatedHTTPProxy, mocks.HTTPProxyDesiredWeight, types.NotVerified)
+		verifyWeight(mocks.FalseConditionHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
 	})
 
 	// Canceling should cause an exit
