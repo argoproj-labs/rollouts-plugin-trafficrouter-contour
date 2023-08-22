@@ -96,4 +96,9 @@ apiVersion: argoproj.io/v1alpha1
 
 6. Enjoy It.
 
-## TODO: Contribution
+## Contributing
+
+Thanks for taking the time to join our community and start contributing!
+
+- Please familiarize yourself with the [Code of Conduct](/CODE_OF_CONDUCT.md) before contributing.
+- Check out the [open issues](https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/issues).
