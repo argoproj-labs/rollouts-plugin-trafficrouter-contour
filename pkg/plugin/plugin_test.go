@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -14,7 +15,6 @@ import (
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
 	goPlugin "github.com/hashicorp/go-plugin"
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
-	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	fakeDynClient "k8s.io/client-go/dynamic/fake"
