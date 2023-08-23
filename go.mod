@@ -1,12 +1,11 @@
 module github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour
 
-go 1.19
+go 1.21
 
 require (
 	github.com/argoproj/argo-rollouts v1.4.0-rc1.0.20230310073321-5fef78a8e47b
 	github.com/hashicorp/go-plugin v1.4.9
 	github.com/projectcontour/contour v1.24.2
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.26.1
 )
