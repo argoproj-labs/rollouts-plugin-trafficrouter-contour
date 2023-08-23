@@ -13,7 +13,7 @@ Contour supports multiple configuration APIs in order to meet the needs of as ma
 
 NOTES:
 
-**_1. The file as follows just for illustrative purposes only, please do not use directly!!!_**
+**_1. The file as follows ( and the codes in it) just for illustrative purposes only, please do not use directly!!!_**
 
 **_2. The argo-rollouts >= [v1.5.0-rc1](https://github.com/argoproj/argo-rollouts/releases/tag/v1.5.0-rc1)_**
 
@@ -21,27 +21,30 @@ Steps:
 
 1. Run the `yaml/rbac.yaml` to add the role for operate on the `HTTPProxy`.
 2. Build this plugin.
-3. Put the plugin somewhere & mount on to the container for `argo-rollouts`:
+3. Put the plugin somewhere & mount on to the `argo-rollouts`container (please refer to the example YAML below to modify the deployment):
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-name: argo-rollouts
-namespace: argo-rollouts
+  name: argo-rollouts
+  namespace: argo-rollouts
 spec:
-template:
-   spec:
-   volumes:
-      - name: contour-plugin
-      hostPath:
-          path: /CHANGE-ME/rollouts-trafficrouter-contour-plugin
-          type: ''
-   containers:
-      - name: argo-rollouts
-      volumeMounts:
-          - name: contour-plugin
-          mountPath: /CHANGE-ME/rollouts-trafficrouter-contour-plugin
+  template:
+    spec:
+      ...
+      volumes:
+        ...
+         - name: contour-plugin
+           hostPath:
+             path: /CHANGE-ME/rollouts-plugin-trafficrouter-contour
+             type: ''
+      containers:
+        - name: argo-rollouts
+        ...
+          volumeMounts:
+             - name: contour-plugin
+               mountPath: /CHANGE-ME/rollouts-plugin-trafficrouter-contour
 
 ```
 
@@ -51,12 +54,12 @@ template:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-name: argo-rollouts-config
-namespace: argo-rollouts
+  name: argo-rollouts-config
+  namespace: argo-rollouts
 data:
-trafficRouterPlugins: |-
-  - name: "argoproj-labs/contour"
-  location: "file://CHANGE-ME/rollouts-trafficrouter-contour-plugin/contour-plugin"
+  trafficRouterPlugins: |-
+    - name: "argoproj-labs/contour"
+      location: "file://CHANGE-ME/rollouts-trafficrouter-contour-plugin/contour-plugin"
 binaryData: {}
 ```
 
@@ -64,34 +67,33 @@ binaryData: {}
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
-   kind: Rollout
-   metadata:
-   name: rollouts-demo
-   namespace: rollouts-demo
-   spec:
-   replicas: 6
-   selector:
-       matchLabels:
-       app.kubernetes.io/instance: rollouts-demo
-   strategy:
-       canary:
-       canaryService: canaryService
-       stableService: stableService
-       steps:
-           - setWeight: 30
-           - pause:
-               duration: 10
-       trafficRouting:
-           plugins:
-           argoproj-labs/contour:
-               httpProxies:
-                 - rollouts-demo
-               namespace: rollouts-demo
-   workloadRef:
-       apiVersion: apps/v1
-       kind: Deployment
-       name: canary
-
+kind: Rollout
+metadata:
+  name: rollouts-demo
+  namespace: rollouts-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: rollouts-demo
+  strategy:
+    canary:
+      canaryService: canaryService
+      stableService: stableService
+      steps:
+        - setWeight: 30
+        - pause:
+            duration: 10
+      trafficRouting:
+        plugins:
+          argoproj-labs/contour:
+            httpProxies:
+              - rollouts-demo
+            namespace: rollouts-demo
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: canary
 ```
 
 6. Enjoy It.
