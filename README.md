@@ -13,7 +13,7 @@ Contour supports multiple configuration APIs in order to meet the needs of as ma
 
 NOTES:
 
-**_1. The file as follows ( and the codes in it) just for illustrative purposes only, please do not use directly!!!_**
+**_1. The file as follows (and the codes in it) just for illustrative purposes only, please do not use directly!!!_**
 
 **_2. The argo-rollouts >= [v1.5.0-rc1](https://github.com/argoproj/argo-rollouts/releases/tag/v1.5.0-rc1)_**
 
