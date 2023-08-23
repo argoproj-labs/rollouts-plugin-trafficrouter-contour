@@ -1,6 +1,6 @@
 module github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour
 
-go 1.19
+go 1.21
 
 require (
 	github.com/argoproj/argo-rollouts v1.5.1
