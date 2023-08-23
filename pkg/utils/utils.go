@@ -47,8 +47,7 @@ func InitLogger() {
 		slog.String("plugin", "trafficrouter"),
 		slog.String("vendor", "contour"),
 	}
-	opts.NewTextHandler(os.Stderr).WithAttrs(attrs)
 
-	l := slog.New(opts.NewTextHandler(os.Stderr).WithAttrs(attrs))
+	l := slog.New(slog.NewTextHandler(os.Stderr, &opts).WithAttrs(attrs))
 	slog.SetDefault(l)
 }
