@@ -1,10 +1,11 @@
 package utils
 
 import (
+	"log/slog"
 	"os"
 
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
-	"golang.org/x/exp/slog"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -46,8 +47,7 @@ func InitLogger(lvl slog.Level) {
 		slog.String("plugin", "trafficrouter"),
 		slog.String("vendor", "contour"),
 	}
-	opts.NewTextHandler(os.Stderr).WithAttrs(attrs)
 
-	l := slog.New(opts.NewTextHandler(os.Stderr).WithAttrs(attrs))
+	l := slog.New(slog.NewTextHandler(os.Stderr, &opts).WithAttrs(attrs))
 	slog.SetDefault(l)
 }
