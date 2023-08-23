@@ -1,10 +1,11 @@
 package utils
 
 import (
+	"log/slog"
 	"os"
 
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
-	"golang.org/x/exp/slog"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
