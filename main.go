@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log/slog"
 
 	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/plugin"
@@ -20,8 +21,12 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 	MagicCookieValue: "trafficrouter",
 }
 
+var lvl = flag.Int("l", int(slog.LevelInfo), "the logging level for 'log/slog', (default: 0)")
+
 func main() {
-	utils.InitLogger()
+	flag.Parse()
+
+	utils.InitLogger(slog.Level(*lvl))
 
 	rpcPluginImp := &plugin.RpcPlugin{}
 

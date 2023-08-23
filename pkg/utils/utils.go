@@ -36,11 +36,11 @@ func Must1[T any](t T, err error) T {
 	return t
 }
 
-func InitLogger() {
-	lvl := &slog.LevelVar{}
-	lvl.Set(slog.LevelDebug)
+func InitLogger(lvl slog.Level) {
+	lvlVar := &slog.LevelVar{}
+	lvlVar.Set(lvl)
 	opts := slog.HandlerOptions{
-		Level: lvl,
+		Level: lvlVar,
 	}
 
 	attrs := []slog.Attr{
