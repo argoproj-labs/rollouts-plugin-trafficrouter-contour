@@ -27,7 +27,7 @@ var testHandshake = goPlugin.HandshakeConfig{
 }
 
 func TestRunSuccessfully(t *testing.T) {
-	utils.InitLogger()
+	utils.InitLogger(slog.LevelDebug)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
