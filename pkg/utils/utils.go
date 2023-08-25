@@ -10,6 +10,12 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// ProxyStatus defines the current status of CR/HTTPProxy
+// copied from projectcontour
+type ProxyStatus string
+
+const ProxyStatusValid ProxyStatus = "valid"
+
 func NewKubeConfig() (*rest.Config, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	// if you want to change the loading rules (which files in which order), you can do so here

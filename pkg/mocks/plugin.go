@@ -1,6 +1,8 @@
 package mocks
 
 import (
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
+
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -31,5 +33,8 @@ var HTTPProxyObj = contourv1.HTTPProxy{
 				},
 			},
 		},
+	},
+	Status: contourv1.HTTPProxyStatus{
+		CurrentStatus: string(utils.ProxyStatusValid),
 	},
 }

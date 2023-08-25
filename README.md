@@ -13,7 +13,7 @@ Contour supports multiple configuration APIs in order to meet the needs of as ma
 
 NOTES:
 
-**_1. The file as follows (and the codes in it) just for illustrative purposes only, please do not use directly!!!_**
+**_1. The files as follows (and the codes in it) just for illustrative purposes only, please do not use directly!!!_**
 
 **_2. The argo-rollouts >= [v1.5.0-rc1](https://github.com/argoproj/argo-rollouts/releases/tag/v1.5.0-rc1)_**
 
@@ -21,7 +21,7 @@ Steps:
 
 1. Run the `yaml/rbac.yaml` to add the role for operate on the `HTTPProxy`.
 2. Build this plugin.
-3. Put the plugin somewhere & mount on to the `argo-rollouts`container (please refer to the example YAML below to modify the deployment):
+3. Put the plugin somewhere & mount on to the `argo-rollouts`container (Please refer to the example YAML below to modify the deployment):
 
 ```yaml
 apiVersion: apps/v1
@@ -59,7 +59,7 @@ metadata:
 data:
   trafficRouterPlugins: |-
     - name: "argoproj-labs/contour"
-      location: "file://CHANGE-ME/rollouts-trafficrouter-contour-plugin/contour-plugin"
+      location: "file://CHANGE-ME/rollouts-plugin-trafficrouter-contour"
 binaryData: {}
 ```
 

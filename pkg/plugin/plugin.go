@@ -53,6 +53,54 @@ func (r *RpcPlugin) UpdateHash(rollout *v1alpha1.Rollout, canaryHash, stableHash
 	return pluginTypes.RpcError{}
 }
 
+func (r *RpcPlugin) mustUnmarshalTrafficRouting(rollout *v1alpha1.Rollout) *ContourTrafficRouting {
+	ctr := &ContourTrafficRouting{}
+	utils.Must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], ctr))
+	return ctr
+}
+
+func (r *RpcPlugin) mustHTTPProxy(ctx context.Context, namespace, name string) *contourv1.HTTPProxy {
+	httpProxy := &contourv1.HTTPProxy{}
+	unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{}))
+	utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), httpProxy))
+	return httpProxy
+}
+
+func (r *RpcPlugin) mustSetWeight(ctx context.Context, namespace, name, canarySvcName, stableSvcName string, desiredWeight int32) {
+	slog.Debug("updating the HTTPProxy", slog.String("name", name))
+
+	httpProxy := r.mustHTTPProxy(ctx, namespace, name)
+
+	slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
+
+	// TODO: filter by condition(s)
+	svcMap := buildServiceMapFor(httpProxy)
+
+	canarySvc := utils.Must1(serviceWithName(canarySvcName, svcMap))
+	stableSvc := utils.Must1(serviceWithName(stableSvcName, svcMap))
+
+	slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+
+	canarySvc.Weight = int64(desiredWeight)
+	stableSvc.Weight = 100 - canarySvc.Weight
+
+	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+
+	m := utils.Must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
+	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
+	if err != nil {
+		slog.Error("update the HTTPProxy is failed", slog.String("name", name), slog.Any("err", err))
+		utils.Must(err)
+	}
+
+	if r.IsTest {
+		proxy := contourv1.HTTPProxy{}
+		utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(updated.UnstructuredContent(), &proxy))
+		r.UpdatedMockHTTPProxy = &proxy
+	}
+
+	slog.Info("update the HTTPProxy is successfully", slog.String("name", name))
+}
 func (r *RpcPlugin) SetWeight(
 	rollout *v1alpha1.Rollout,
 	desiredWeight int32,
@@ -69,54 +117,17 @@ func (r *RpcPlugin) SetWeight(
 		utils.Must(errors.New("illegal parameter(s)"))
 	}
 
-	ctx := context.Background()
+	canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
+	stableSvcName := rollout.Spec.Strategy.Canary.StableService
 
-	ctr := ContourTrafficRouting{}
-	utils.Must(json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr))
-
+	ctr := r.mustUnmarshalTrafficRouting(rollout)
 	for _, proxy := range ctr.HTTPProxies {
-		slog.Debug("updating proxy", slog.String("proxy", proxy))
-
-		var httpProxy contourv1.HTTPProxy
-		unstr := utils.Must1(r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Get(ctx, proxy, metav1.GetOptions{}))
-		utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy))
-
-		canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
-		stableSvcName := rollout.Spec.Strategy.Canary.StableService
-
-		slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
-
-		// TODO: filter by condition(s)
-		svcMap := getServiceMap(&httpProxy)
-		canarySvc := utils.Must1(getService(canarySvcName, svcMap))
-		stableSvc := utils.Must1(getService(stableSvcName, svcMap))
-
-		slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
-
-		canarySvc.Weight = int64(desiredWeight)
-		stableSvc.Weight = 100 - canarySvc.Weight
-
-		slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
-
-		m := utils.Must1(runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy))
-		updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
-		if err != nil {
-			slog.Error("update the HTTPProxy is failed", slog.String("name", httpProxy.Name), slog.Any("err", err))
-			utils.Must(err)
-		}
-
-		if r.IsTest {
-			proxy := contourv1.HTTPProxy{}
-			utils.Must(runtime.DefaultUnstructuredConverter.FromUnstructured(updated.UnstructuredContent(), &proxy))
-			r.UpdatedMockHTTPProxy = &proxy
-		}
-
-		slog.Info("successfully updated HTTPProxy", slog.String("httpproxy", proxy))
+		r.mustSetWeight(context.Background(), rollout.Namespace, proxy, canarySvcName, stableSvcName, desiredWeight)
 	}
 	return
 }
 
-func getService(name string, svcMap map[string]*contourv1.Service) (*contourv1.Service, error) {
+func serviceWithName(name string, svcMap map[string]*contourv1.Service) (*contourv1.Service, error) {
 	svc, ok := svcMap[name]
 	if !ok {
 		return nil, fmt.Errorf("the service: %s is not found in HTTPProxy", name)
@@ -124,15 +135,50 @@ func getService(name string, svcMap map[string]*contourv1.Service) (*contourv1.S
 	return svc, nil
 }
 
-func getServiceMap(httpProxy *contourv1.HTTPProxy) map[string]*contourv1.Service {
-	svcMap := make(map[string]*contourv1.Service)
+func buildServiceMapFor(httpProxy *contourv1.HTTPProxy) map[string]*contourv1.Service {
+	m := make(map[string]*contourv1.Service)
 	for _, r := range httpProxy.Spec.Routes {
 		for i := range r.Services {
 			s := &r.Services[i]
-			svcMap[s.Name] = s
+			m[s.Name] = s
 		}
 	}
-	return svcMap
+	return m
+}
+
+func (r *RpcPlugin) VerifyWeight(
+	rollout *v1alpha1.Rollout,
+	desiredWeight int32,
+	additionalDestinations []v1alpha1.WeightDestination) (rv pluginTypes.RpcVerified, re pluginTypes.RpcError) {
+	defer func() {
+		if e := recover(); e != nil {
+			re.ErrorString = e.(error).Error()
+			rv = pluginTypes.NotVerified
+		}
+	}()
+
+	if rollout == nil {
+		utils.Must(errors.New("illegal parameter(s)"))
+	}
+
+	ctr := r.mustUnmarshalTrafficRouting(rollout)
+	for _, proxy := range ctr.HTTPProxies {
+		slog.Debug("verify the HTTPProxy", slog.String("name", proxy))
+
+		httpProxy := r.mustHTTPProxy(context.Background(), rollout.Namespace, proxy)
+
+		slog.Debug("the HTTPProxy status", slog.String("current", httpProxy.Status.CurrentStatus))
+
+		if utils.ProxyStatus(httpProxy.Status.CurrentStatus) != utils.ProxyStatusValid {
+			panic(fmt.Errorf("verify the HTTPProxy/%s's status is failed, desiredWeight: %d want: %s actual: %s", proxy, desiredWeight, utils.ProxyStatusValid, httpProxy.Status.CurrentStatus))
+		}
+	}
+
+	slog.Info("verify weight is successfully", slog.Int64("desiredWeight", int64(desiredWeight)))
+
+	rv = pluginTypes.Verified
+
+	return
 }
 
 func (r *RpcPlugin) SetHeaderRoute(rollout *v1alpha1.Rollout, headerRouting *v1alpha1.SetHeaderRoute) pluginTypes.RpcError {
@@ -141,10 +187,6 @@ func (r *RpcPlugin) SetHeaderRoute(rollout *v1alpha1.Rollout, headerRouting *v1a
 
 func (r *RpcPlugin) SetMirrorRoute(rollout *v1alpha1.Rollout, setMirrorRoute *v1alpha1.SetMirrorRoute) pluginTypes.RpcError {
 	return pluginTypes.RpcError{}
-}
-
-func (r *RpcPlugin) VerifyWeight(rollout *v1alpha1.Rollout, desiredWeight int32, additionalDestinations []v1alpha1.WeightDestination) (pluginTypes.RpcVerified, pluginTypes.RpcError) {
-	return pluginTypes.Verified, pluginTypes.RpcError{}
 }
 
 func (r *RpcPlugin) RemoveManagedRoutes(rollout *v1alpha1.Rollout) pluginTypes.RpcError {

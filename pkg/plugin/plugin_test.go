@@ -13,6 +13,7 @@ import (
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
+	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
 	goPlugin "github.com/hashicorp/go-plugin"
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -101,17 +102,16 @@ func TestRunSuccessfully(t *testing.T) {
 		t.Fail()
 	}
 
-	pluginInstance := raw.(*rolloutsPlugin.TrafficRouterPluginRPC)
-	err = pluginInstance.InitPlugin()
+	instance := raw.(*rolloutsPlugin.TrafficRouterPluginRPC)
+	err = instance.InitPlugin()
 	if err.Error() != "" {
 		t.Fail()
 	}
-	t.Run("SetWeight", func(t *testing.T) {
+	t.Run("SetAndVerifyWeight", func(t *testing.T) {
 		var desiredWeight int32 = 30
 
 		rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, mocks.HTTPProxyName)
-
-		re := pluginInstance.SetWeight(
+		re := instance.SetWeight(
 			rollout,
 			desiredWeight,
 			[]v1alpha1.WeightDestination{})
@@ -120,14 +120,27 @@ func TestRunSuccessfully(t *testing.T) {
 			t.Fail()
 		}
 
-		svcs := rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes[0].Services
+		if rpcPluginImp.UpdatedMockHTTPProxy == nil {
+			t.FailNow()
+		}
 
+		svcs := rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes[0].Services
 		if 100-desiredWeight != int32(svcs[0].Weight) {
 			t.Fail()
 		}
 		if desiredWeight != int32(svcs[1].Weight) {
 			t.Fail()
 		}
+
+		rv, _ := instance.VerifyWeight(
+			rollout,
+			desiredWeight,
+			[]v1alpha1.WeightDestination{})
+
+		if rv != pluginTypes.Verified {
+			t.Fail()
+		}
+
 	})
 
 	// Canceling should cause an exit
