@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/argoproj/argo-rollouts/utils/plugin/types"
 	goPlugin "github.com/hashicorp/go-plugin"
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
-	"golang.org/x/exp/slog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeDynClient "k8s.io/client-go/dynamic/fake"
@@ -28,7 +28,7 @@ var testHandshake = goPlugin.HandshakeConfig{
 }
 
 func TestRunSuccessfully(t *testing.T) {
-	utils.InitLogger()
+	utils.InitLogger(slog.LevelDebug)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

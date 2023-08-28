@@ -1,12 +1,14 @@
 package main
 
 import (
+	"flag"
+	"log/slog"
+
 	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/plugin"
 	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
 
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
 	goPlugin "github.com/hashicorp/go-plugin"
-	"golang.org/x/exp/slog"
 )
 
 // handshakeConfigs are used to just do a basic handshake between
@@ -19,8 +21,12 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 	MagicCookieValue: "trafficrouter",
 }
 
+var lvl = flag.Int("l", int(slog.LevelInfo), "the logging level for 'log/slog', (default: 0)")
+
 func main() {
-	utils.InitLogger()
+	flag.Parse()
+
+	utils.InitLogger(slog.Level(*lvl))
 
 	rpcPluginImp := &plugin.RpcPlugin{}
 

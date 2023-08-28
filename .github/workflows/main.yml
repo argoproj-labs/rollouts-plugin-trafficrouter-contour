@@ -1,33 +1,64 @@
 # This workflow will build a golang project
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
 
-name: Go
-
+name: Contour plugin CI
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - "main"
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - "main"
+env:
+  GOLANG_VERSION: '1.21'
 
 jobs:
-
-  build:
+  unit-tests:
+    name: Unit tests running
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GOLANG_VERSION }}
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.19
+      - name: Checkout code
+        uses: actions/checkout@v3.1.0
 
-    - name: Lint
-      # https://golangci-lint.run/
-      uses: golangci/golangci-lint-action@v3
-      with:
-        version: latest
-        args: --issues-exit-code=0 --timeout 10m
+      - name: Unit tests running
+        run: |
+          go test -v ./...
 
-    - name: Build
-      run: make build
 
+  linting:
+    name: Go code linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GOLANG_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v3.1.0
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --verbose --timeout 6m
+    
+  build:
+    name: Build creation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GOLANG_VERSION }}
+
+      - name: Checkout code
+        uses: actions/checkout@v3.1.0
+
+      - name: Build creation
+        run: |
+          go build -v

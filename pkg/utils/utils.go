@@ -1,10 +1,11 @@
 package utils
 
 import (
+	"log/slog"
 	"os"
 
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
-	"golang.org/x/exp/slog"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -22,19 +23,18 @@ func NewKubeConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-func InitLogger() {
-	lvl := &slog.LevelVar{}
-	lvl.Set(slog.LevelDebug)
+func InitLogger(lvl slog.Level) {
+	lvlVar := &slog.LevelVar{}
+	lvlVar.Set(lvl)
 	opts := slog.HandlerOptions{
-		Level: lvl,
+		Level: lvlVar,
 	}
 
 	attrs := []slog.Attr{
 		slog.String("plugin", "trafficrouter"),
 		slog.String("vendor", "contour"),
 	}
-	opts.NewTextHandler(os.Stderr).WithAttrs(attrs)
 
-	l := slog.New(opts.NewTextHandler(os.Stderr).WithAttrs(attrs))
+	l := slog.New(slog.NewTextHandler(os.Stderr, &opts).WithAttrs(attrs))
 	slog.SetDefault(l)
 }
