@@ -51,3 +51,9 @@ func InitLogger(lvl slog.Level) {
 	l := slog.New(slog.NewTextHandler(os.Stderr, &opts).WithAttrs(attrs))
 	slog.SetDefault(l)
 }
+
+// ProxyStatus defines the current status of CR/HTTPProxy
+// copied from projectcontour
+type ProxyStatus string
+
+const ProxyStatusValid ProxyStatus = "valid"

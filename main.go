@@ -21,7 +21,7 @@ var handshakeConfig = goPlugin.HandshakeConfig{
 	MagicCookieValue: "trafficrouter",
 }
 
-var lvl = flag.Int("l", int(slog.LevelInfo), "the logging level for 'log/slog', (default: 0)")
+var lvl = flag.Int("l", int(slog.LevelDebug), "the logging level for 'log/slog', (default: 0)")
 
 func main() {
 	flag.Parse()
