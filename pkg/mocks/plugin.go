@@ -13,7 +13,7 @@ const (
 
 	HTTPProxyName               = "argo-rollouts"
 	ValidHTTPProxyName          = "argo-rollouts-valid"
-	OutdatedHTTPProxy           = "argo-rollouts-outdated"
+	OutdatedHTTPProxyName       = "argo-rollouts-outdated"
 	InvalidHTTPProxyName        = "argo-rollouts-invalid"
 	FalseConditionHTTPProxyName = "argo-rollouts-false-condition"
 
@@ -22,11 +22,11 @@ const (
 )
 
 func MakeObjects() []runtime.Object {
-	httpProxy := newValidHttpProxy(HTTPProxyName)
+	httpProxy := newHTTPProxy(HTTPProxyName)
 
-	validHttpProxy := newValidHttpProxy(ValidHTTPProxyName)
+	validHttpProxy := newHTTPProxy(ValidHTTPProxyName)
 
-	invalidHttpProxy := newValidHttpProxy(InvalidHTTPProxyName)
+	invalidHttpProxy := newHTTPProxy(InvalidHTTPProxyName)
 	invalidHttpProxy.Status = contourv1.HTTPProxyStatus{
 		Conditions: []contourv1.DetailedCondition{
 			{
@@ -39,10 +39,10 @@ func MakeObjects() []runtime.Object {
 		},
 	}
 
-	outdatedHttpProxy := newValidHttpProxy(OutdatedHTTPProxy)
+	outdatedHttpProxy := newHTTPProxy(OutdatedHTTPProxyName)
 	outdatedHttpProxy.Generation = HTTPProxyGeneration + 1
 
-	falseConditionHttpProxy := newValidHttpProxy(FalseConditionHTTPProxyName)
+	falseConditionHttpProxy := newHTTPProxy(FalseConditionHTTPProxyName)
 	falseConditionHttpProxy.Status = contourv1.HTTPProxyStatus{
 		Conditions: []contourv1.DetailedCondition{
 			{
@@ -65,7 +65,7 @@ func MakeObjects() []runtime.Object {
 	return objs
 }
 
-func newValidHttpProxy(name string) *contourv1.HTTPProxy {
+func newHTTPProxy(name string) *contourv1.HTTPProxy {
 	return &contourv1.HTTPProxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,

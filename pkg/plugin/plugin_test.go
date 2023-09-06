@@ -141,7 +141,7 @@ func TestRunSuccessfully(t *testing.T) {
 		verifyWeight(mocks.ValidHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.Verified)
 		verifyWeight(mocks.ValidHTTPProxyName, mocks.HTTPProxyDesiredWeight+10, types.NotVerified)
 		verifyWeight(mocks.InvalidHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
-		verifyWeight(mocks.OutdatedHTTPProxy, mocks.HTTPProxyDesiredWeight, types.NotVerified)
+		verifyWeight(mocks.OutdatedHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
 		verifyWeight(mocks.FalseConditionHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
 	})
 

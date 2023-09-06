@@ -69,15 +69,15 @@ func (r *RpcPlugin) SetWeight(rollout *v1alpha1.Rollout, desiredWeight int32, ad
 
 	ctx := context.Background()
 
-	for _, httpProxyName := range ctr.HTTPProxies {
-		slog.Debug("updating httpproxy", slog.String("name", httpProxyName))
+	for _, proxy := range ctr.HTTPProxies {
+		slog.Debug("updating httpproxy", slog.String("name", proxy))
 
-		if err := r.updateHTTPProxy(ctx, httpProxyName, rollout, desiredWeight); err != nil {
-			slog.Error("failed to update httpproxy", slog.String("name", httpProxyName), slog.Any("err", err))
+		if err := r.updateHTTPProxy(ctx, proxy, rollout, desiredWeight); err != nil {
+			slog.Error("failed to update httpproxy", slog.String("name", proxy), slog.Any("err", err))
 			return pluginTypes.RpcError{ErrorString: err.Error()}
 		}
 
-		slog.Info("successfully updated httpproxy", slog.String("name", httpProxyName))
+		slog.Info("successfully updated httpproxy", slog.String("name", proxy))
 	}
 
 	return pluginTypes.RpcError{}
@@ -103,19 +103,19 @@ func (r *RpcPlugin) VerifyWeight(rollout *v1alpha1.Rollout, desiredWeight int32,
 
 	ctx := context.Background()
 
-	for _, httpProxyName := range ctr.HTTPProxies {
-		slog.Debug("verifying httpproxy", slog.String("name", httpProxyName))
+	for _, proxy := range ctr.HTTPProxies {
+		slog.Debug("verifying httpproxy", slog.String("name", proxy))
 
-		verified, err := r.verifyHTTPProxy(ctx, httpProxyName, rollout, desiredWeight)
+		verified, err := r.verifyHTTPProxy(ctx, proxy, rollout, desiredWeight)
 		if err != nil {
-			slog.Error("failed to verify httpproxy", slog.String("name", httpProxyName), slog.Any("err", err))
+			slog.Error("failed to verify httpproxy", slog.String("name", proxy), slog.Any("err", err))
 			return pluginTypes.NotVerified, pluginTypes.RpcError{ErrorString: err.Error()}
 		}
 		if !verified {
 			return pluginTypes.NotVerified, pluginTypes.RpcError{}
 		}
 
-		slog.Info("successfully verified httpproxy", slog.String("name", httpProxyName))
+		slog.Info("successfully verified httpproxy", slog.String("name", proxy))
 	}
 
 	return pluginTypes.Verified, pluginTypes.RpcError{}
@@ -129,7 +129,7 @@ func (r *RpcPlugin) Type() string {
 	return Type
 }
 
-func (r *RpcPlugin) getHttpProxy(ctx context.Context, namespace string, name string) (*contourv1.HTTPProxy, error) {
+func (r *RpcPlugin) getHTTPProxy(ctx context.Context, namespace string, name string) (*contourv1.HTTPProxy, error) {
 	unstr, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (r *RpcPlugin) getHttpProxy(ctx context.Context, namespace string, name str
 }
 
 func (r *RpcPlugin) updateHTTPProxy(ctx context.Context, httpProxyName string, rollout *v1alpha1.Rollout, desiredWeight int32) error {
-	httpProxy, err := r.getHttpProxy(ctx, rollout.Namespace, httpProxyName)
+	httpProxy, err := r.getHTTPProxy(ctx, rollout.Namespace, httpProxyName)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func (r *RpcPlugin) updateHTTPProxy(ctx context.Context, httpProxyName string, r
 }
 
 func (r *RpcPlugin) verifyHTTPProxy(ctx context.Context, httpProxyName string, rollout *v1alpha1.Rollout, desiredWeight int32) (bool, error) {
-	httpProxy, err := r.getHttpProxy(ctx, rollout.Namespace, httpProxyName)
+	httpProxy, err := r.getHTTPProxy(ctx, rollout.Namespace, httpProxyName)
 	if err != nil {
 		return false, err
 	}
