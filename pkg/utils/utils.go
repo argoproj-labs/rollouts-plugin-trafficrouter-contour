@@ -23,19 +23,6 @@ func NewKubeConfig() (*rest.Config, error) {
 	return config, nil
 }
 
-func Must(err error) {
-	if err != nil {
-		panic(err)
-	}
-}
-
-func Must1[T any](t T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return t
-}
-
 func InitLogger(lvl slog.Level) {
 	lvlVar := &slog.LevelVar{}
 	lvlVar.Set(lvl)
