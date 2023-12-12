@@ -1,2 +1,4 @@
 .idea
 rollouts-plugin-trafficrouter-contour
+rollouts-plugin-trafficrouter-contour-linux-arm64
+rollouts-plugin-trafficrouter-contour-linux-amd64
