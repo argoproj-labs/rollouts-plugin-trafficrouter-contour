@@ -81,9 +81,10 @@ jobs:
 
   image:
     needs: [init-variable]
+    name: Build Docker image
     runs-on: ubuntu-latest
     steps:
-      - name: checkout
+      - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
@@ -93,9 +94,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: use setup-buildx-action
+      - name: Use setup-buildx-action
         uses: docker/setup-buildx-action@v2
-      - name: build jenkins agent with podman
+      - name: Build Docker image
         uses: docker/build-push-action@v4.1.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
