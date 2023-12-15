@@ -89,7 +89,6 @@ spec:
           argoproj-labs/contour:
             httpProxies:
               - rollouts-demo
-            namespace: rollouts-demo
   workloadRef:
     apiVersion: apps/v1
     kind: Deployment
