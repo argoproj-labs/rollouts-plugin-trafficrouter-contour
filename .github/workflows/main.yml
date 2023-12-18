@@ -16,7 +16,7 @@ jobs:
   call-workflow-passing-data:
     uses: argoproj-labs/rollouts-plugin-trafficrouter-contour/.github/workflows/main.yml@main
     with:
-      config-path: .github/workflows/main.yml
+      config-path: .github/labeler.yml
     secrets: inherit # <= this one
   
   init-variable:
