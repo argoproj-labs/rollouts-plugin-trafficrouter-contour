@@ -14,9 +14,7 @@ env:
 
 jobs:
   call-workflow-passing-data:
-    uses: argoproj-labs/rollouts-plugin-trafficrouter-contour/.github/workflows/main.yml@main
-    with:
-      config-path: .github/labeler.yml
+    uses: argoproj-labs/rollouts-plugin-trafficrouter-contour/.github/workflows/main.yml
     secrets: inherit # <= this one
   
   init-variable:
@@ -83,7 +81,7 @@ jobs:
           go build -v
 
   image:
-    needs: [init-variable]
+    needs: [init-variable, call-workflow-passing-data]
     name: Build Docker image
     runs-on: ${{ matrix.os }}
     strategy:
