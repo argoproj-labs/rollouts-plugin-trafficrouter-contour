@@ -13,6 +13,12 @@ env:
   GOLANG_VERSION: '1.21'
 
 jobs:
+  call-workflow-passing-data:
+    uses: argoproj-labs/rollouts-plugin-trafficrouter-contour/.github/workflows/main.yml@main
+    with:
+      config-path: .github/workflows/main.yml
+    secrets: inherit # <= this one
+  
   init-variable:
     runs-on: ubuntu-latest
     outputs:
