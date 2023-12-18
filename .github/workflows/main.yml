@@ -9,6 +9,13 @@ on:
   pull_request:
     branches:
       - "main"
+  workflow_call:
+    secrets:
+      DAOCLOUD_REGISTRY_USERNAME:
+        required: true
+      DAOCLOUD_REGISTRY_PWD:
+        required: true
+  
 env:
   GOLANG_VERSION: '1.21'
 
