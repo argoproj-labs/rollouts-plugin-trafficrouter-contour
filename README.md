@@ -20,6 +20,8 @@ NOTES:
 Steps:
 
 1. Run the `yaml/rbac.yaml` to add the role for operate on the `HTTPProxy`.
+> NOTE: if install the argo-rollouts by helm, and the helm chart version >= [2.32.6], just set the `providerRBAC.contour` to `true` in the `values.yaml` file.
+
 2. Build this plugin.
 3. Put the plugin somewhere & mount on to the `argo-rollouts`container (please refer to the example YAML below to modify the deployment):
 
