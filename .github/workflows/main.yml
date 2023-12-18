@@ -14,7 +14,7 @@ env:
 
 jobs:
   call-workflow-passing-data:
-    uses: argoproj-labs/rollouts-plugin-trafficrouter-contour/.github/workflows/main.yml@*
+    uses: argoproj-labs/rollouts-plugin-trafficrouter-contour/.github/workflows/main.yml@main
     secrets: inherit # <= this one
   
   init-variable:
