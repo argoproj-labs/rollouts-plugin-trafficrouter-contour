@@ -7,10 +7,10 @@ WORKDIR /app
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "-s -w" -o rollouts-contour-trafficrouter-plugin .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -ldflags "-s -w" -o rollouts-plugin-trafficrouter-contour .
 
 FROM alpine:3.19.0
 
 ARG TARGETARCH
 
-COPY --from=builder /app/rollouts-contour-trafficrouter-plugin /bin/
+COPY --from=builder /app/rollouts-plugin-trafficrouter-contour /bin/
