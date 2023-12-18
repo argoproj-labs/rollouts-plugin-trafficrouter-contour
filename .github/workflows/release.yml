@@ -4,11 +4,8 @@
 name: Contour plugin CI
 on:
   push:
-    branches:
-      - "main"
-  pull_request:
-    branches:
-      - "main"
+    tags:        
+      - '*'
 
 env:
   GOLANG_VERSION: '1.21'
@@ -76,3 +73,35 @@ jobs:
       - name: Build creation
         run: |
           go build -v
+
+  image:
+    needs: [init-variable]
+    name: Build Docker image
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: "Login to Docker Registry"
+        uses: docker/login-action@v3
+        with:
+          registry: release.daocloud.io
+          username: ${{ secrets.DAOCLOUD_REGISTRY_USERNAME }}
+          password: ${{ secrets.DAOCLOUD_REGISTRY_PWD }}
+      - name: Use setup-buildx-action
+        uses: docker/setup-buildx-action@v2
+      - name: Build Docker image
+        uses: docker/build-push-action@v4.1.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          push: true
+          provenance: false
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            release.daocloud.io/skoala/rollouts-plugin-trafficrouter-contour:${{ needs.init-variable.outputs.container_tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
