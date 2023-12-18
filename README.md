@@ -99,6 +99,16 @@ spec:
 
 6. Enjoy It.
 
+## Use it by Docker image
+
+From v0.2.3, you can use this plugin from a init container, the plugin artifact location in the image is:
+
+```
+/bin/rollouts-plugin-trafficrouter-contour
+```
+
+The docker image with its artifact both support amd64 and arm64.
+
 ## Contributing
 
 Thanks for taking the time to join our community and start contributing!
