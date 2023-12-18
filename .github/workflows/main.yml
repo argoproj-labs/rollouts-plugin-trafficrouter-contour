@@ -22,6 +22,10 @@ env:
   DAOCLOUD_REGISTRY_PWS: ${{ secrets.DAOCLOUD_REGISTRY_PWD }}
 
 jobs:
+  prepare:
+    uses: ./.github/workflows/main.yml
+    # The following is required to use secrets in .build-application.yml:
+    secrets: inherit
   init-variable:
     runs-on: ubuntu-latest
     outputs:
