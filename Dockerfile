@@ -13,4 +13,6 @@ FROM alpine:3.19.0
 
 ARG TARGETARCH
 
+USER 999
+
 COPY --from=builder /app/rollouts-plugin-trafficrouter-contour /bin/
