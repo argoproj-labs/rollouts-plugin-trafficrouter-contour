@@ -9,17 +9,15 @@ import (
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
+	jsonpatch "github.com/evanphx/json-patch"
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
 )
-
-// Type holds this controller type
-const Type = "Contour"
 
 var _ rolloutsPlugin.TrafficRouterPlugin = (*RpcPlugin)(nil)
 
@@ -70,7 +68,7 @@ func (r *RpcPlugin) SetWeight(rollout *v1alpha1.Rollout, canaryWeightPercent int
 	ctx := context.Background()
 
 	for _, proxy := range ctr.HTTPProxies {
-		slog.Debug("updating httpproxy", slog.String("name", proxy))
+		slog.Debug("updating httpproxy weight", slog.String("name", proxy))
 
 		if err := r.updateHTTPProxy(ctx, proxy, rollout, canaryWeightPercent); err != nil {
 			slog.Error("failed to update httpproxy", slog.String("name", proxy), slog.Any("err", err))
@@ -132,12 +130,12 @@ func (r *RpcPlugin) Type() string {
 func (r *RpcPlugin) getHTTPProxy(ctx context.Context, namespace string, name string) (*contourv1.HTTPProxy, error) {
 	unstr, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get the httpproxy: %w", err)
 	}
 
 	var httpProxy contourv1.HTTPProxy
 	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstr.UnstructuredContent(), &httpProxy); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to convert the httpproxy: %w", err)
 	}
 	return &httpProxy, nil
 }
@@ -153,22 +151,11 @@ func (r *RpcPlugin) updateHTTPProxy(
 		return err
 	}
 
-	canarySvc, stableSvc, totalWeight, err := getRouteServices(httpProxy, rollout)
+	patchData, patchType, err := createPatch(httpProxy, rollout, canaryWeightPercent)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create patch : %w", err)
 	}
-
-	slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
-
-	canarySvc.Weight, stableSvc.Weight = utils.CalcWeight(totalWeight, float32(canaryWeightPercent))
-
-	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
-
-	m, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&httpProxy)
-	if err != nil {
-		return err
-	}
-	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Update(ctx, &unstructured.Unstructured{Object: m}, metav1.UpdateOptions{})
+	updated, err := r.dynamicClient.Resource(contourv1.HTTPProxyGVR).Namespace(rollout.Namespace).Patch(ctx, httpProxyName, patchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
@@ -182,6 +169,31 @@ func (r *RpcPlugin) updateHTTPProxy(
 	}
 
 	return nil
+}
+
+func createPatch(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout, canaryWeightPercent int32) ([]byte, types.PatchType, error) {
+	oldData, err := json.Marshal(httpProxy.DeepCopy())
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to marshal the current configuration: %w", err)
+	}
+
+	canarySvc, stableSvc, totalWeight, err := getRouteServices(httpProxy, rollout)
+	if err != nil {
+		return nil, types.MergePatchType, err
+	}
+	slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+
+	canarySvc.Weight, stableSvc.Weight = utils.CalcWeight(totalWeight, float32(canaryWeightPercent))
+	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
+
+	newData, err := json.Marshal(httpProxy)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to marshal the current configuration: %w", err)
+	}
+
+	// now default use json merge patch.
+	patch, err := jsonpatch.CreateMergePatch(oldData, newData)
+	return patch, types.MergePatchType, err
 }
 
 func (r *RpcPlugin) verifyHTTPProxy(
@@ -261,7 +273,7 @@ func getRouteServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout)
 
 func getContourTrafficRouting(rollout *v1alpha1.Rollout) (*ContourTrafficRouting, error) {
 	var ctr ContourTrafficRouting
-	if err := json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins["argoproj-labs/contour"], &ctr); err != nil {
+	if err := json.Unmarshal(rollout.Spec.Strategy.Canary.TrafficRouting.Plugins[ConfigKey], &ctr); err != nil {
 		return nil, err
 	}
 	return &ctr, nil
@@ -288,7 +300,7 @@ func getServiceMap(httpProxy *contourv1.HTTPProxy) map[string]*contourv1.Service
 
 func validateRolloutParameters(rollout *v1alpha1.Rollout) error {
 	if rollout == nil || rollout.Spec.Strategy.Canary == nil || rollout.Spec.Strategy.Canary.StableService == "" || rollout.Spec.Strategy.Canary.CanaryService == "" {
-		return fmt.Errorf("illegal parameter(s)")
+		return fmt.Errorf("illegal parameter(s),both canary service and stable service must be specified")
 	}
 	return nil
 }
