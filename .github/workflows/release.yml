@@ -93,7 +93,7 @@ jobs:
           username: ${{ secrets.DAOCLOUD_REGISTRY_USERNAME }}
           password: ${{ secrets.DAOCLOUD_REGISTRY_PWD }}
       - name: Use setup-buildx-action
-        uses: docker/setup-buildx-action@v2
+        uses: docker/setup-buildx-action@v3
       - name: Build Docker image
         uses: docker/build-push-action@v4.1.1
         with:
