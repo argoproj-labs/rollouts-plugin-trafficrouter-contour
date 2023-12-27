@@ -17,7 +17,7 @@ jobs:
       container_tag: ${{ steps.init_variable.outputs.container_tag }}
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: output environment variable
@@ -35,7 +35,7 @@ jobs:
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@v4
 
       - name: Unit tests running
         run: |
@@ -51,7 +51,7 @@ jobs:
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@v4
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
@@ -68,7 +68,7 @@ jobs:
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@v4
 
       - name: Build creation
         run: |
@@ -83,7 +83,7 @@ jobs:
         os: [ubuntu-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: "Login to Docker Registry"
