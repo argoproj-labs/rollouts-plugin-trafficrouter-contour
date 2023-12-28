@@ -20,7 +20,7 @@ jobs:
       container_tag: ${{ steps.init_variable.outputs.container_tag }}
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: output environment variable
@@ -33,12 +33,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@v4
 
       - name: Unit tests running
         run: |
@@ -49,12 +49,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@v4
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v3
@@ -66,12 +66,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GOLANG_VERSION }}
 
       - name: Checkout code
-        uses: actions/checkout@v3.1.0
+        uses: actions/checkout@v4
 
       - name: Build creation
         run: |
