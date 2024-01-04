@@ -7,7 +7,6 @@ import (
 )
 
 const (
-	Namespace         = "default"
 	StableServiceName = "argo-rollouts-stable"
 	CanaryServiceName = "argo-rollouts-canary"
 
@@ -17,41 +16,48 @@ const (
 	InvalidHTTPProxyName        = "argo-rollouts-invalid"
 	FalseConditionHTTPProxyName = "argo-rollouts-false-condition"
 
-	HTTPProxyGeneration    = 1
 	HTTPProxyDesiredWeight = 20
 )
 
+const (
+	namespace           = "default"
+	httpProxyGeneration = 1
+)
+
+func makeDetailedCondition(typ string, status contourv1.ConditionStatus) contourv1.DetailedCondition {
+	return contourv1.DetailedCondition{
+		Condition: contourv1.Condition{
+			Type:               typ,
+			Status:             status,
+			ObservedGeneration: httpProxyGeneration,
+		},
+	}
+}
+
+func makeService(name string, weight int64) contourv1.Service {
+	return contourv1.Service{
+		Name:   name,
+		Weight: weight,
+	}
+}
 func MakeObjects() []runtime.Object {
 	httpProxy := newHTTPProxy(HTTPProxyName)
-
 	validHttpProxy := newHTTPProxy(ValidHTTPProxyName)
 
 	invalidHttpProxy := newHTTPProxy(InvalidHTTPProxyName)
 	invalidHttpProxy.Status = contourv1.HTTPProxyStatus{
 		Conditions: []contourv1.DetailedCondition{
-			{
-				Condition: contourv1.Condition{
-					Type:               contourv1.ConditionTypeServiceError,
-					Status:             contourv1.ConditionTrue,
-					ObservedGeneration: HTTPProxyGeneration,
-				},
-			},
+			makeDetailedCondition(contourv1.ConditionTypeServiceError, contourv1.ConditionTrue),
 		},
 	}
 
 	outdatedHttpProxy := newHTTPProxy(OutdatedHTTPProxyName)
-	outdatedHttpProxy.Generation = HTTPProxyGeneration + 1
+	outdatedHttpProxy.Generation = httpProxyGeneration + 1
 
 	falseConditionHttpProxy := newHTTPProxy(FalseConditionHTTPProxyName)
 	falseConditionHttpProxy.Status = contourv1.HTTPProxyStatus{
 		Conditions: []contourv1.DetailedCondition{
-			{
-				Condition: contourv1.Condition{
-					Type:               contourv1.ValidConditionType,
-					Status:             contourv1.ConditionFalse,
-					ObservedGeneration: HTTPProxyGeneration,
-				},
-			},
+			makeDetailedCondition(contourv1.ValidConditionType, contourv1.ConditionFalse),
 		},
 	}
 
@@ -69,34 +75,22 @@ func newHTTPProxy(name string) *contourv1.HTTPProxy {
 	return &contourv1.HTTPProxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
-			Namespace:  Namespace,
-			Generation: HTTPProxyGeneration,
+			Namespace:  namespace,
+			Generation: httpProxyGeneration,
 		},
 		Spec: contourv1.HTTPProxySpec{
 			Routes: []contourv1.Route{
 				{
 					Services: []contourv1.Service{
-						{
-							Name:   StableServiceName,
-							Weight: 100 - HTTPProxyDesiredWeight,
-						},
-						{
-							Name:   CanaryServiceName,
-							Weight: HTTPProxyDesiredWeight,
-						},
+						makeService(StableServiceName, 100-HTTPProxyDesiredWeight),
+						makeService(CanaryServiceName, HTTPProxyDesiredWeight),
 					},
 				},
 			},
 		},
 		Status: contourv1.HTTPProxyStatus{
 			Conditions: []contourv1.DetailedCondition{
-				{
-					Condition: contourv1.Condition{
-						Type:               contourv1.ValidConditionType,
-						Status:             contourv1.ConditionTrue,
-						ObservedGeneration: HTTPProxyGeneration,
-					},
-				},
+				makeDetailedCondition(contourv1.ValidConditionType, contourv1.ConditionTrue),
 			},
 		},
 	}
