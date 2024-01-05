@@ -251,7 +251,7 @@ func getRouteServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout)
 		otherWeight += svc.Weight
 	}
 
-	// the total weight must be 100
+	// the total weight must equals to 100
 	if otherWeight+canarySvc.Weight+stableSvc.Weight != 100 {
 		return nil, nil, 0, fmt.Errorf("the total weight must equals to 100")
 	}

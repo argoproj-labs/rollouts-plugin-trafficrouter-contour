@@ -11,7 +11,7 @@ import (
 const (
 	StableServiceName = "argo-rollouts-stable"
 	CanaryServiceName = "argo-rollouts-canary"
-	AddOnServiceName  = "argo-rollouts-add-on"
+	AddOnServiceName  = "argo-rollouts-addon"
 
 	HTTPProxyName               = "argo-rollouts"
 	ValidHTTPProxyName          = "argo-rollouts-valid"
