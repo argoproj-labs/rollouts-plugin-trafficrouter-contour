@@ -1,6 +1,8 @@
 package mocks
 
 import (
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
+
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -9,6 +11,7 @@ import (
 const (
 	StableServiceName = "argo-rollouts-stable"
 	CanaryServiceName = "argo-rollouts-canary"
+	AddOnServiceName  = "argo-rollouts-addon"
 
 	HTTPProxyName               = "argo-rollouts"
 	ValidHTTPProxyName          = "argo-rollouts-valid"
@@ -16,7 +19,11 @@ const (
 	InvalidHTTPProxyName        = "argo-rollouts-invalid"
 	FalseConditionHTTPProxyName = "argo-rollouts-false-condition"
 
-	HTTPProxyDesiredWeight = 20
+	// HTTPProxyAddOnWeight represents the add-ons services' weight in the total weight
+	HTTPProxyAddOnWeight = 20
+
+	// HTTPProxyCanaryWeightPercent represents the canary's weight for the canary deploment service (only)
+	HTTPProxyCanaryWeightPercent = 40
 )
 
 const (
@@ -34,27 +41,29 @@ func makeDetailedCondition(typ string, status contourv1.ConditionStatus) contour
 	}
 }
 
-func makeService(name string, weight int64) contourv1.Service {
-	return contourv1.Service{
-		Name:   name,
-		Weight: weight,
+func MakeName(origin string, appendPostfix ...bool) string {
+	if len(appendPostfix) == 0 || !appendPostfix[0] {
+		return origin
 	}
+	return origin + "-addon"
 }
-func MakeObjects() []runtime.Object {
-	httpProxy := newHTTPProxy(HTTPProxyName)
-	validHttpProxy := newHTTPProxy(ValidHTTPProxyName)
 
-	invalidHttpProxy := newHTTPProxy(InvalidHTTPProxyName)
+func MakeObjects(appendPostfix bool, addonServices ...contourv1.Service) []runtime.Object {
+
+	httpProxy := newHTTPProxy(MakeName(HTTPProxyName, appendPostfix), addonServices...)
+	validHttpProxy := newHTTPProxy(MakeName(ValidHTTPProxyName, appendPostfix), addonServices...)
+
+	invalidHttpProxy := newHTTPProxy(MakeName(InvalidHTTPProxyName, appendPostfix), addonServices...)
 	invalidHttpProxy.Status = contourv1.HTTPProxyStatus{
 		Conditions: []contourv1.DetailedCondition{
 			makeDetailedCondition(contourv1.ConditionTypeServiceError, contourv1.ConditionTrue),
 		},
 	}
 
-	outdatedHttpProxy := newHTTPProxy(OutdatedHTTPProxyName)
+	outdatedHttpProxy := newHTTPProxy(MakeName(OutdatedHTTPProxyName, appendPostfix), addonServices...)
 	outdatedHttpProxy.Generation = httpProxyGeneration + 1
 
-	falseConditionHttpProxy := newHTTPProxy(FalseConditionHTTPProxyName)
+	falseConditionHttpProxy := newHTTPProxy(MakeName(FalseConditionHTTPProxyName, appendPostfix), addonServices...)
 	falseConditionHttpProxy.Status = contourv1.HTTPProxyStatus{
 		Conditions: []contourv1.DetailedCondition{
 			makeDetailedCondition(contourv1.ValidConditionType, contourv1.ConditionFalse),
@@ -71,7 +80,23 @@ func MakeObjects() []runtime.Object {
 	return objs
 }
 
-func newHTTPProxy(name string) *contourv1.HTTPProxy {
+func mainServices(totalWeight int64) []contourv1.Service {
+	canaryWeight, stableWeight := utils.CalcWeight(totalWeight, HTTPProxyCanaryWeightPercent)
+	return []contourv1.Service{
+		utils.MakeService(StableServiceName, stableWeight),
+		utils.MakeService(CanaryServiceName, canaryWeight),
+	}
+}
+func newHTTPProxy(name string, addOnServices ...contourv1.Service) *contourv1.HTTPProxy {
+	totalWeight := int64(100)
+
+	for _, svc := range addOnServices {
+		totalWeight -= svc.Weight
+	}
+
+	services := mainServices(totalWeight)
+	services = append(services, addOnServices...)
+
 	return &contourv1.HTTPProxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
@@ -81,10 +106,7 @@ func newHTTPProxy(name string) *contourv1.HTTPProxy {
 		Spec: contourv1.HTTPProxySpec{
 			Routes: []contourv1.Route{
 				{
-					Services: []contourv1.Service{
-						makeService(StableServiceName, 100-HTTPProxyDesiredWeight),
-						makeService(CanaryServiceName, HTTPProxyDesiredWeight),
-					},
+					Services: services,
 				},
 			},
 		},

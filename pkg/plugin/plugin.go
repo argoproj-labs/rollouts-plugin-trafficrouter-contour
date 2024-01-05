@@ -57,7 +57,7 @@ func (r *RpcPlugin) UpdateHash(rollout *v1alpha1.Rollout, canaryHash, stableHash
 	return pluginTypes.RpcError{}
 }
 
-func (r *RpcPlugin) SetWeight(rollout *v1alpha1.Rollout, desiredWeight int32, additionalDestinations []v1alpha1.WeightDestination) pluginTypes.RpcError {
+func (r *RpcPlugin) SetWeight(rollout *v1alpha1.Rollout, canaryWeightPercent int32, additionalDestinations []v1alpha1.WeightDestination) pluginTypes.RpcError {
 	if err := validateRolloutParameters(rollout); err != nil {
 		return pluginTypes.RpcError{ErrorString: err.Error()}
 	}
@@ -72,7 +72,7 @@ func (r *RpcPlugin) SetWeight(rollout *v1alpha1.Rollout, desiredWeight int32, ad
 	for _, proxy := range ctr.HTTPProxies {
 		slog.Debug("updating httpproxy", slog.String("name", proxy))
 
-		if err := r.updateHTTPProxy(ctx, proxy, rollout, desiredWeight); err != nil {
+		if err := r.updateHTTPProxy(ctx, proxy, rollout, canaryWeightPercent); err != nil {
 			slog.Error("failed to update httpproxy", slog.String("name", proxy), slog.Any("err", err))
 			return pluginTypes.RpcError{ErrorString: err.Error()}
 		}
@@ -91,7 +91,7 @@ func (r *RpcPlugin) SetMirrorRoute(rollout *v1alpha1.Rollout, setMirrorRoute *v1
 	return pluginTypes.RpcError{}
 }
 
-func (r *RpcPlugin) VerifyWeight(rollout *v1alpha1.Rollout, desiredWeight int32, additionalDestinations []v1alpha1.WeightDestination) (pluginTypes.RpcVerified, pluginTypes.RpcError) {
+func (r *RpcPlugin) VerifyWeight(rollout *v1alpha1.Rollout, canaryWeightPercent int32, additionalDestinations []v1alpha1.WeightDestination) (pluginTypes.RpcVerified, pluginTypes.RpcError) {
 	if err := validateRolloutParameters(rollout); err != nil {
 		return pluginTypes.NotVerified, pluginTypes.RpcError{ErrorString: err.Error()}
 	}
@@ -106,7 +106,7 @@ func (r *RpcPlugin) VerifyWeight(rollout *v1alpha1.Rollout, desiredWeight int32,
 	for _, proxy := range ctr.HTTPProxies {
 		slog.Debug("verifying httpproxy", slog.String("name", proxy))
 
-		verified, err := r.verifyHTTPProxy(ctx, proxy, rollout, desiredWeight)
+		verified, err := r.verifyHTTPProxy(ctx, proxy, rollout, canaryWeightPercent)
 		if err != nil {
 			slog.Error("failed to verify httpproxy", slog.String("name", proxy), slog.Any("err", err))
 			return pluginTypes.NotVerified, pluginTypes.RpcError{ErrorString: err.Error()}
@@ -142,21 +142,25 @@ func (r *RpcPlugin) getHTTPProxy(ctx context.Context, namespace string, name str
 	return &httpProxy, nil
 }
 
-func (r *RpcPlugin) updateHTTPProxy(ctx context.Context, httpProxyName string, rollout *v1alpha1.Rollout, desiredWeight int32) error {
+func (r *RpcPlugin) updateHTTPProxy(
+	ctx context.Context,
+	httpProxyName string,
+	rollout *v1alpha1.Rollout,
+	canaryWeightPercent int32) error {
+
 	httpProxy, err := r.getHTTPProxy(ctx, rollout.Namespace, httpProxyName)
 	if err != nil {
 		return err
 	}
 
-	canarySvc, stableSvc, err := getCanaryAndStableServices(httpProxy, rollout)
+	canarySvc, stableSvc, totalWeight, err := getRouteServices(httpProxy, rollout)
 	if err != nil {
 		return err
 	}
 
 	slog.Debug("old weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
-	canarySvc.Weight = int64(desiredWeight)
-	stableSvc.Weight = 100 - canarySvc.Weight
+	canarySvc.Weight, stableSvc.Weight = utils.CalcWeight(totalWeight, float32(canaryWeightPercent))
 
 	slog.Debug("new weight", slog.Int64("canary", canarySvc.Weight), slog.Int64("stable", stableSvc.Weight))
 
@@ -180,7 +184,12 @@ func (r *RpcPlugin) updateHTTPProxy(ctx context.Context, httpProxyName string, r
 	return nil
 }
 
-func (r *RpcPlugin) verifyHTTPProxy(ctx context.Context, httpProxyName string, rollout *v1alpha1.Rollout, desiredWeight int32) (bool, error) {
+func (r *RpcPlugin) verifyHTTPProxy(
+	ctx context.Context,
+	httpProxyName string,
+	rollout *v1alpha1.Rollout,
+	canaryWeightPercent int32) (bool, error) {
+
 	httpProxy, err := r.getHTTPProxy(ctx, rollout.Namespace, httpProxyName)
 	if err != nil {
 		return false, err
@@ -200,22 +209,22 @@ func (r *RpcPlugin) verifyHTTPProxy(ctx context.Context, httpProxyName string, r
 		return false, nil
 	}
 
-	canarySvc, stableSvc, err := getCanaryAndStableServices(httpProxy, rollout)
+	canarySvc, stableSvc, totalWeight, err := getRouteServices(httpProxy, rollout)
 	if err != nil {
 		return false, err
 	}
 
-	canarySvcDesiredWeight := int64(desiredWeight)
-	stableSvcDesiredWeight := 100 - canarySvcDesiredWeight
-	if canarySvc.Weight != canarySvcDesiredWeight || stableSvc.Weight != stableSvcDesiredWeight {
-		slog.Debug(fmt.Sprintf("expected weights are canary=%d and stable=%d, but got canary=%d and stable=%d", canarySvcDesiredWeight, stableSvcDesiredWeight, canarySvc.Weight, stableSvc.Weight), slog.String("name", httpProxyName))
+	canaryWeight, stableWeight := utils.CalcWeight(totalWeight, float32(canaryWeightPercent))
+	if canarySvc.Weight != canaryWeight || stableSvc.Weight != stableWeight {
+		slog.Debug(fmt.Sprintf("expected weights are canary=%d and stable=%d, but got canary=%d and stable=%d", canaryWeight, stableWeight, canarySvc.Weight, stableSvc.Weight), slog.String("name", httpProxyName))
 		return false, nil
 	}
 
 	return true, nil
 }
 
-func getCanaryAndStableServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout) (*contourv1.Service, *contourv1.Service, error) {
+func getRouteServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout) (
+	*contourv1.Service, *contourv1.Service, int64, error) {
 	canarySvcName := rollout.Spec.Strategy.Canary.CanaryService
 	stableSvcName := rollout.Spec.Strategy.Canary.StableService
 
@@ -226,15 +235,28 @@ func getCanaryAndStableServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha
 
 	canarySvc, err := getService(canarySvcName, svcMap)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
 	stableSvc, err := getService(stableSvcName, svcMap)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
-	return canarySvc, stableSvc, nil
+	otherWeight := int64(0)
+	for name, svc := range svcMap {
+		if name == stableSvcName || name == canarySvcName {
+			continue
+		}
+		otherWeight += svc.Weight
+	}
+
+	// the total weight must equals to 100
+	if otherWeight+canarySvc.Weight+stableSvc.Weight != 100 {
+		return nil, nil, 0, fmt.Errorf("the total weight must equals to 100")
+	}
+
+	return canarySvc, stableSvc, 100 - otherWeight, nil
 }
 
 func getContourTrafficRouting(rollout *v1alpha1.Rollout) (*ContourTrafficRouting, error) {

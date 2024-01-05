@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/mocks"
+	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
+
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	rolloutsPlugin "github.com/argoproj/argo-rollouts/rollout/trafficrouting/plugin/rpc"
 	"github.com/argoproj/argo-rollouts/utils/plugin/types"
@@ -16,9 +19,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeDynClient "k8s.io/client-go/dynamic/fake"
-
-	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/mocks"
-	"github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/pkg/utils"
 )
 
 var testHandshake = goPlugin.HandshakeConfig{
@@ -39,7 +39,16 @@ func TestRunSuccessfully(t *testing.T) {
 	}
 
 	_ = b.AddToScheme(s)
-	dynClient := fakeDynClient.NewSimpleDynamicClient(s, mocks.MakeObjects()...)
+
+	// no add-on service
+	objects := mocks.MakeObjects(false)
+
+	addOnSvc := utils.MakeService(mocks.AddOnServiceName, mocks.HTTPProxyAddOnWeight)
+
+	// with add-on service
+	objects = append(objects, mocks.MakeObjects(true, addOnSvc)...)
+
+	dynClient := fakeDynClient.NewSimpleDynamicClient(s, objects...)
 	rpcPluginImp := &RpcPlugin{
 		IsTest:        true,
 		dynamicClient: dynClient,
@@ -107,43 +116,66 @@ func TestRunSuccessfully(t *testing.T) {
 		t.Fail()
 	}
 
-	t.Run("SetWeight", func(t *testing.T) {
-		rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, mocks.HTTPProxyName)
-		desiredWeight := int32(30)
+	makeSetWeightTester := func(name string, totalWeight, canaryWeightPercent int32) func(t *testing.T) {
+		return func(t *testing.T) {
+			rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, name)
 
-		if err := pluginInstance.SetWeight(rollout, desiredWeight, []v1alpha1.WeightDestination{}); err.HasError() {
-			t.Fail()
-		}
-
-		svcs := rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes[0].Services
-
-		if 100-desiredWeight != int32(svcs[0].Weight) {
-			t.Fail()
-		}
-		if desiredWeight != int32(svcs[1].Weight) {
-			t.Fail()
-		}
-	})
-
-	t.Run("VerifyWeight", func(t *testing.T) {
-		verifyWeight := func(httpProxyName string, desiredWeight int32, expected types.RpcVerified) {
-			rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, httpProxyName)
-
-			actual, err := pluginInstance.VerifyWeight(rollout, desiredWeight, []v1alpha1.WeightDestination{})
-			if err.HasError() {
+			if err := pluginInstance.SetWeight(rollout, canaryWeightPercent, []v1alpha1.WeightDestination{}); err.HasError() {
 				t.Fail()
 			}
-			if actual != expected {
+
+			canaryWeight, stableWeight := utils.CalcWeight(int64(totalWeight), float32(canaryWeightPercent))
+
+			svcs := rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes[0].Services
+
+			if stableWeight != svcs[0].Weight {
+				t.Fail()
+			}
+			if canaryWeight != svcs[1].Weight {
 				t.Fail()
 			}
 		}
+	}
 
-		verifyWeight(mocks.ValidHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.Verified)
-		verifyWeight(mocks.ValidHTTPProxyName, mocks.HTTPProxyDesiredWeight+10, types.NotVerified)
-		verifyWeight(mocks.InvalidHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
-		verifyWeight(mocks.OutdatedHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
-		verifyWeight(mocks.FalseConditionHTTPProxyName, mocks.HTTPProxyDesiredWeight, types.NotVerified)
-	})
+	makeVerifyWeightTester := func(canaryWeightPercent int32, appendPostfix ...bool) func(t *testing.T) {
+		return func(t *testing.T) {
+			verifyWeight := func(httpProxyName string, canaryWeightPercent int32, expected types.RpcVerified) {
+				rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, httpProxyName)
+
+				actual, err := pluginInstance.VerifyWeight(rollout, canaryWeightPercent, []v1alpha1.WeightDestination{})
+				if err.HasError() {
+					t.Fail()
+				}
+				if actual != expected {
+					t.Fail()
+				}
+			}
+
+			verifyWeight(mocks.MakeName(mocks.ValidHTTPProxyName, appendPostfix...), canaryWeightPercent, types.Verified)
+			verifyWeight(mocks.MakeName(mocks.ValidHTTPProxyName, appendPostfix...), canaryWeightPercent+10, types.NotVerified)
+			verifyWeight(mocks.MakeName(mocks.InvalidHTTPProxyName, appendPostfix...), canaryWeightPercent, types.NotVerified)
+			verifyWeight(mocks.MakeName(mocks.OutdatedHTTPProxyName, appendPostfix...), canaryWeightPercent, types.NotVerified)
+			verifyWeight(mocks.MakeName(mocks.FalseConditionHTTPProxyName, appendPostfix...), canaryWeightPercent, types.NotVerified)
+		}
+	}
+
+	t.Run(
+		mocks.MakeName("SetWeight"),
+		makeSetWeightTester(
+			mocks.HTTPProxyName,
+			100,
+			mocks.HTTPProxyCanaryWeightPercent))
+	t.Run(
+		mocks.MakeName("SetWeight", true),
+		makeSetWeightTester(
+			mocks.MakeName(mocks.HTTPProxyName, true),
+			100-mocks.HTTPProxyAddOnWeight,
+			mocks.HTTPProxyCanaryWeightPercent))
+	t.Run("VerifyWeight",
+		makeVerifyWeightTester(mocks.HTTPProxyCanaryWeightPercent))
+	t.Run(
+		mocks.MakeName("VerifyWeight", true),
+		makeVerifyWeightTester(mocks.HTTPProxyCanaryWeightPercent, true))
 
 	// Canceling should cause an exit
 	cancel()
