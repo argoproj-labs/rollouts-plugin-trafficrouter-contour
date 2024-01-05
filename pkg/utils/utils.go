@@ -6,6 +6,7 @@ import (
 
 	pluginTypes "github.com/argoproj/argo-rollouts/utils/plugin/types"
 
+	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -37,4 +38,18 @@ func InitLogger(lvl slog.Level) {
 
 	l := slog.New(slog.NewTextHandler(os.Stderr, &opts).WithAttrs(attrs))
 	slog.SetDefault(l)
+}
+
+// CalcWeight calc the canary and stable weight from the total weight.
+func CalcWeight(totalWeight int64, canaryWeightPercent float32) (canaryWeight, stableWeight int64) {
+	canaryWeight = int64(float32(totalWeight) * canaryWeightPercent / 100.0)
+	stableWeight = totalWeight - canaryWeight
+	return
+}
+
+func MakeService(name string, weight int64) contourv1.Service {
+	return contourv1.Service{
+		Name:   name,
+		Weight: weight,
+	}
 }
