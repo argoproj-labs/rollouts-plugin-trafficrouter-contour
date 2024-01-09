@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	fakeDynClient "k8s.io/client-go/dynamic/fake"
 )
 
@@ -210,5 +212,80 @@ func newRollout(stableSvc, canarySvc, httpProxyName string) *v1alpha1.Rollout {
 				},
 			},
 		},
+	}
+}
+
+func Test_createPatch(t *testing.T) {
+	type args struct {
+		httpProxy     *contourv1.HTTPProxy
+		rollout       *v1alpha1.Rollout
+		desiredWeight int32
+	}
+	tests := []struct {
+		name          string
+		args          args
+		want          []byte
+		wantPatchType k8stypes.PatchType
+		wantErr       bool
+	}{
+		{
+			name: "test create http proxy patch",
+			args: args{
+				httpProxy: &contourv1.HTTPProxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: mocks.HTTPProxyName,
+					},
+					Spec: contourv1.HTTPProxySpec{
+						Routes: []contourv1.Route{
+							{
+								Services: []contourv1.Service{
+									{
+										Name:   mocks.StableServiceName,
+										Weight: 70,
+									},
+									{
+										Name:   mocks.CanaryServiceName,
+										Weight: 20,
+									},
+									{
+										Name:   "others-service",
+										Weight: 10,
+									},
+								},
+							},
+						},
+					},
+				},
+				rollout: &v1alpha1.Rollout{
+					Spec: v1alpha1.RolloutSpec{
+						Strategy: v1alpha1.RolloutStrategy{
+							Canary: &v1alpha1.CanaryStrategy{
+								StableService: mocks.StableServiceName,
+								CanaryService: mocks.CanaryServiceName,
+							},
+						},
+					},
+				},
+				desiredWeight: 50,
+			},
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":45},{"name":"argo-rollouts-canary","port":0,"weight":45},{"name":"others-service","port":0,"weight":10}]}]}}`),
+			wantPatchType: k8stypes.MergePatchType,
+			wantErr:       false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, gotPatchType, err := createPatch(tt.args.httpProxy, tt.args.rollout, tt.args.desiredWeight)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("createPatch() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(gotPatchType, tt.wantPatchType) {
+				t.Errorf("createPatch() gotPatchType = %v, want %v", gotPatchType, tt.wantPatchType)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("createPatch() got = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
