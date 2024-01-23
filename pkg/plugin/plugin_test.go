@@ -123,18 +123,26 @@ func TestRunSuccessfully(t *testing.T) {
 			rollout := newRollout(mocks.StableServiceName, mocks.CanaryServiceName, name)
 
 			if err := pluginInstance.SetWeight(rollout, canaryWeightPercent, []v1alpha1.WeightDestination{}); err.HasError() {
-				t.Fail()
+				t.FailNow()
 			}
 
 			canaryWeight, stableWeight := utils.CalcWeight(int64(totalWeight), float32(canaryWeightPercent))
+			if rpcPluginImp.UpdatedMockHTTPProxy == nil {
+				t.FailNow()
+			}
+			if len(rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes) == 0 {
+				t.FailNow()
+			}
+			if len(rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes[0].Services) < 2 {
+				t.FailNow()
+			}
 
 			svcs := rpcPluginImp.UpdatedMockHTTPProxy.Spec.Routes[0].Services
-
 			if stableWeight != svcs[0].Weight {
-				t.Fail()
+				t.FailNow()
 			}
 			if canaryWeight != svcs[1].Weight {
-				t.Fail()
+				t.FailNow()
 			}
 		}
 	}

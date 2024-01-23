@@ -242,8 +242,7 @@ func getRouteServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout)
 
 	slog.Debug("the services name", slog.String("stable", stableSvcName), slog.String("canary", canarySvcName))
 
-	// TODO: filter by condition(s)
-	svcMap := getServiceMap(httpProxy)
+	svcMap := getServiceMap(httpProxy, canarySvcName)
 
 	canarySvc, err := getService(canarySvcName, svcMap)
 	if err != nil {
@@ -287,13 +286,27 @@ func getService(name string, svcMap map[string]*contourv1.Service) (*contourv1.S
 	return svc, nil
 }
 
-func getServiceMap(httpProxy *contourv1.HTTPProxy) map[string]*contourv1.Service {
+func getServiceMap(httpProxy *contourv1.HTTPProxy, canarySvcName string) map[string]*contourv1.Service {
 	svcMap := make(map[string]*contourv1.Service)
-	for _, r := range httpProxy.Spec.Routes {
-		for i := range r.Services {
-			s := &r.Services[i]
-			svcMap[s.Name] = s
+
+	// filter the services by canary service name
+	filter := func(services []contourv1.Service) bool {
+		for _, svc := range services {
+			if svc.Name == canarySvcName {
+				return true
+			}
 		}
+		return false
+	}
+	// TODO: same service in multi conditions
+	for _, r := range httpProxy.Spec.Routes {
+		if filter(r.Services) {
+			for i := range r.Services {
+				s := &r.Services[i]
+				svcMap[s.Name] = s
+			}
+		}
+
 	}
 	return svcMap
 }
