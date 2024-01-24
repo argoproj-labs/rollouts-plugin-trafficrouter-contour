@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	StableServiceName = "argo-rollouts-stable"
-	CanaryServiceName = "argo-rollouts-canary"
-	AddOnServiceName  = "argo-rollouts-addon"
+	StableServiceName     = "argo-rollouts-stable"
+	CanaryServiceName     = "argo-rollouts-canary"
+	AddOnServiceName      = "argo-rollouts-addon"
+	AddOnRouteServiceName = "argo-rollouts-addon-route"
 
 	HTTPProxyName               = "argo-rollouts"
 	ValidHTTPProxyName          = "argo-rollouts-valid"
@@ -49,7 +50,6 @@ func MakeName(origin string, appendPostfix ...bool) string {
 }
 
 func MakeObjects(appendPostfix bool, addonServices ...contourv1.Service) []runtime.Object {
-
 	httpProxy := newHTTPProxy(MakeName(HTTPProxyName, appendPostfix), addonServices...)
 	validHttpProxy := newHTTPProxy(MakeName(ValidHTTPProxyName, appendPostfix), addonServices...)
 
@@ -96,19 +96,20 @@ func newHTTPProxy(name string, addOnServices ...contourv1.Service) *contourv1.HT
 
 	services := mainServices(totalWeight)
 	services = append(services, addOnServices...)
+	canaryRoute := contourv1.Route{Services: services}
 
-	return &contourv1.HTTPProxy{
+	addOnRoute := contourv1.Route{
+		Services: []contourv1.Service{utils.MakeService(AddOnRouteServiceName, 100)},
+	}
+
+	httpproxy := &contourv1.HTTPProxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       name,
 			Namespace:  namespace,
 			Generation: httpProxyGeneration,
 		},
 		Spec: contourv1.HTTPProxySpec{
-			Routes: []contourv1.Route{
-				{
-					Services: services,
-				},
-			},
+			Routes: []contourv1.Route{canaryRoute, addOnRoute},
 		},
 		Status: contourv1.HTTPProxyStatus{
 			Conditions: []contourv1.DetailedCondition{
@@ -116,4 +117,5 @@ func newHTTPProxy(name string, addOnServices ...contourv1.Service) *contourv1.HT
 			},
 		},
 	}
+	return httpproxy
 }
