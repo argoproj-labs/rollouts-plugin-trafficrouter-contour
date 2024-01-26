@@ -11,6 +11,45 @@ Contour supports multiple configuration APIs in order to meet the needs of as ma
 
 ## How to integrate Contour with Argo Rollouts
 
+### Install Rollouts Using Helm
+
+Add the following code to your `valuse.yaml` file when install the argo-rollouts by helm:
+
+```yaml
+controller:
+    initContainers:                                   
+      - name: copy-contour-plugin
+        image: release.daocloud.io/skoala/rollouts-plugin-trafficrouter-contour:v0.3.0
+        command: ["/bin/sh", "-c"]                    
+        args:
+          - cp /bin/rollouts-plugin-trafficrouter-contour /plugins
+        volumeMounts:                                 
+          - name: contour-plugin
+            mountPath: /plugins
+    trafficRouterPlugins:                             
+      trafficRouterPlugins: |-
+        - name: argoproj-labs/contour
+          location: "file:///plugins/rollouts-plugin-trafficrouter-contour"  
+    volumes:                                           
+      - name: contour-plugin
+        emptyDir: {}
+    volumeMounts:                                      
+      - name: contour-plugin
+        mountPath: /plugins
+```
+
+if argo-rollouts helm chart version >= [2.32.6], just set the `providerRBAC.contour` to `true` in the `values.yaml` file. Otherwise, you need to follow the steps below to create RBAC for operate on the `HTTPProxy`:
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/argoproj-labs/rollouts-plugin-trafficrouter-contour/main/yaml/rbac.yaml
+
+or
+
+kubectl patch clusterrole argo-rollouts --type='json' -p='[{"op": "add", "path": "/rules/-", "value": {"apiGroups":["projectcontour.io"],"resources":["httpproxies"],"verbs":["get","list","watch","update","patch","delete"]}}]'
+```
+
+### Stand-alone installation
+
 NOTES:
 
 **_1. The file as follows (and the codes in it) just for illustrative purposes only, please do not use directly!_**
@@ -20,8 +59,6 @@ NOTES:
 Steps:
 
 1. Run the `yaml/rbac.yaml` to add the role for operate on the `HTTPProxy`.
-> NOTE: if install the argo-rollouts by helm, and the helm chart version >= [2.32.6], just set the `providerRBAC.contour` to `true` in the `values.yaml` file.
-
 2. Build this plugin.
 3. Put the plugin somewhere & mount on to the `argo-rollouts`container (please refer to the example YAML below to modify the deployment):
 
