@@ -3,7 +3,8 @@ module github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour
 go 1.21
 
 require (
-	github.com/argoproj/argo-rollouts v1.6.4
+	github.com/argoproj/argo-rollouts v1.6.5
+	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/projectcontour/contour v1.27.0
 	k8s.io/apimachinery v0.29.0
@@ -13,7 +14,6 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fatih/color v1.16.0 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/hashicorp/go-hclog v1.6.2 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/imdario/mergo v0.3.16 // indirect
@@ -32,7 +32,6 @@ require (
 
 require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
-	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.20.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
