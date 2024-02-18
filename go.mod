@@ -3,7 +3,7 @@ module github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour
 go 1.21
 
 require (
-	github.com/argoproj/argo-rollouts v1.6.5
+	github.com/argoproj/argo-rollouts v1.6.6
 	github.com/evanphx/json-patch v5.6.0+incompatible
 	github.com/hashicorp/go-plugin v1.6.0
 	github.com/projectcontour/contour v1.27.0
