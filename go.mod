@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/argoproj/argo-rollouts v1.6.5
 	github.com/evanphx/json-patch v5.9.0+incompatible
-	github.com/hashicorp/go-plugin v1.6.0
+	github.com/hashicorp/go-plugin v1.6.1
 	github.com/projectcontour/contour v1.27.0
 	k8s.io/apimachinery v0.29.0
 	k8s.io/client-go v0.29.0
