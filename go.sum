@@ -1,5 +1,5 @@
-github.com/argoproj/argo-rollouts v1.6.5 h1:VDAp9PGboRbzd9tQJ/8IkaI+KrvWIRrpfSV5aeX0GUQ=
-github.com/argoproj/argo-rollouts v1.6.5/go.mod h1:X2kTiBaYCSounmw1kmONdIZTwJNzNQYC0SrXUgSw9UI=
+github.com/argoproj/argo-rollouts v1.7.1 h1:KWStvHPRrNTbDTclogiYC/s4eKbdS45KkgXiorDzKG0=
+github.com/argoproj/argo-rollouts v1.7.1/go.mod h1:Te4HrUELxKiBpK8lgk77o4gTa3mv8pXCd8xdPprKrbs=
 github.com/bufbuild/protocompile v0.4.0 h1:LbFKd2XowZvQ/kajzguUp2DC9UEIQhIq77fZZlaQsNA=
 github.com/bufbuild/protocompile v0.4.0/go.mod h1:3v93+mbWn/v3xzN+31nwkJfrEpAUwp+BagBSZWx+TP8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
