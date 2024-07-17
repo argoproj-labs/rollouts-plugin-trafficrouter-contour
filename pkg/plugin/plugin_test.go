@@ -340,6 +340,55 @@ func Test_createPatch(t *testing.T) {
 			wantPatchType: k8stypes.MergePatchType,
 			wantErr:       false,
 		},
+		{
+			name: "test create http proxy mirror patch",
+			args: args{
+				httpProxy: &contourv1.HTTPProxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: mocks.HTTPProxyName,
+					},
+					Spec: contourv1.HTTPProxySpec{
+						Routes: []contourv1.Route{
+							{
+								Services: []contourv1.Service{
+									{
+										Name:   mocks.StableServiceName,
+										Weight: 70,
+									},
+									{
+										Name:   mocks.CanaryServiceName,
+										Weight: 20,
+									},
+									{
+										Name:   "others-service",
+										Weight: 10,
+									},
+									{
+										Name:   "mirrored-service",
+										Weight: 10,
+										Mirror: true,
+									},
+								},
+							},
+						},
+					},
+				},
+				rollout: &v1alpha1.Rollout{
+					Spec: v1alpha1.RolloutSpec{
+						Strategy: v1alpha1.RolloutStrategy{
+							Canary: &v1alpha1.CanaryStrategy{
+								StableService: mocks.StableServiceName,
+								CanaryService: mocks.CanaryServiceName,
+							},
+						},
+					},
+				},
+				desiredWeight: 50,
+			},
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":45},{"name":"argo-rollouts-canary","port":0,"weight":45},{"name":"others-service","port":0,"weight":10},{"mirror":true,"name":"mirrored-service","port":0,"weight":10}]}]}}`),
+			wantPatchType: k8stypes.MergePatchType,
+			wantErr:       false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
