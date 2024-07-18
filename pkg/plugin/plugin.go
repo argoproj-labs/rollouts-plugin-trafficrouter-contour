@@ -264,7 +264,7 @@ func getRouteServices(httpProxy *contourv1.HTTPProxy, rollout *v1alpha1.Rollout)
 
 		otherWeight := int64(0)
 		for name, svc := range svcMap {
-			if name == stableSvcName || name == canarySvcName {
+			if name == stableSvcName || name == canarySvcName || svc.Mirror {
 				continue
 			}
 			otherWeight += svc.Weight
