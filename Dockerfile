@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.21.5 as builder
+FROM --platform=$BUILDPLATFORM golang:1.22.5 as builder
 
 ENV GO111MODULE=on
 ARG TARGETARCH
