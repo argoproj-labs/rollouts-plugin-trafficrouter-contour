@@ -2,10 +2,10 @@ module github.com/argoproj-labs/rollouts-plugin-trafficrouter-contour
 
 go 1.22.0
 
-toolchain go1.22.5
+toolchain go1.22.6
 
 require (
-	github.com/argoproj/argo-rollouts v1.6.5
+	github.com/argoproj/argo-rollouts v1.7.2
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/hashicorp/go-plugin v1.6.1
 	github.com/projectcontour/contour v1.30.0
