@@ -237,7 +237,165 @@ func Test_createPatch(t *testing.T) {
 		wantErr       bool
 	}{
 		{
-			name: "test create http proxy patch",
+			name: "Base",
+			args: args{
+				httpProxy: &contourv1.HTTPProxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: mocks.HTTPProxyName,
+					},
+					Spec: contourv1.HTTPProxySpec{
+						Routes: []contourv1.Route{
+							{
+								Services: []contourv1.Service{
+									{
+										Name:   mocks.StableServiceName,
+										Weight: 70,
+									},
+									{
+										Name:   mocks.CanaryServiceName,
+										Weight: 30,
+									},
+								},
+							},
+						},
+					},
+				},
+				rollout: &v1alpha1.Rollout{
+					Spec: v1alpha1.RolloutSpec{
+						Strategy: v1alpha1.RolloutStrategy{
+							Canary: &v1alpha1.CanaryStrategy{
+								StableService: mocks.StableServiceName,
+								CanaryService: mocks.CanaryServiceName,
+							},
+						},
+					},
+				},
+				desiredWeight: 50,
+			},
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":50},{"name":"argo-rollouts-canary","port":0,"weight":50}]}]}}`),
+			wantPatchType: k8stypes.MergePatchType,
+			wantErr:       false,
+		},
+		{
+			name: "Default weights",
+			args: args{
+				httpProxy: &contourv1.HTTPProxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: mocks.HTTPProxyName,
+					},
+					Spec: contourv1.HTTPProxySpec{
+						Routes: []contourv1.Route{
+							{
+								Services: []contourv1.Service{
+									{
+										Name:   mocks.StableServiceName,
+									},
+									{
+										Name:   mocks.CanaryServiceName,
+									},
+								},
+							},
+						},
+					},
+				},
+				rollout: &v1alpha1.Rollout{
+					Spec: v1alpha1.RolloutSpec{
+						Strategy: v1alpha1.RolloutStrategy{
+							Canary: &v1alpha1.CanaryStrategy{
+								StableService: mocks.StableServiceName,
+								CanaryService: mocks.CanaryServiceName,
+							},
+						},
+					},
+				},
+				desiredWeight: 50,
+			},
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":100},{"name":"argo-rollouts-canary","port":0,"weight":100}]}]}}`),
+			wantPatchType: k8stypes.MergePatchType,
+			wantErr:       false,
+		},
+		{
+			name: "Low sum",
+			args: args{
+				httpProxy: &contourv1.HTTPProxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: mocks.HTTPProxyName,
+					},
+					Spec: contourv1.HTTPProxySpec{
+						Routes: []contourv1.Route{
+							{
+								Services: []contourv1.Service{
+									{
+										Name:   mocks.StableServiceName,
+										Weight: 7,
+									},
+									{
+										Name:   mocks.CanaryServiceName,
+										Weight: 3,
+									},
+								},
+							},
+						},
+					},
+				},
+				rollout: &v1alpha1.Rollout{
+					Spec: v1alpha1.RolloutSpec{
+						Strategy: v1alpha1.RolloutStrategy{
+							Canary: &v1alpha1.CanaryStrategy{
+								StableService: mocks.StableServiceName,
+								CanaryService: mocks.CanaryServiceName,
+							},
+						},
+					},
+				},
+				desiredWeight: 50,
+			},
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":500},{"name":"argo-rollouts-canary","port":0,"weight":500}]}]}}`),
+			wantPatchType: k8stypes.MergePatchType,
+			wantErr:       false,
+		},
+		{
+			name: "High sum",
+			args: args{
+				httpProxy: &contourv1.HTTPProxy{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: mocks.HTTPProxyName,
+					},
+					Spec: contourv1.HTTPProxySpec{
+						Routes: []contourv1.Route{
+							{
+								Services: []contourv1.Service{
+									{
+										Name:   mocks.StableServiceName,
+										Weight: 700,
+									},
+									{
+										Name:   mocks.CanaryServiceName,
+										Weight: 300,
+									},
+								},
+							},
+						},
+					},
+				},
+				rollout: &v1alpha1.Rollout{
+					Spec: v1alpha1.RolloutSpec{
+						Strategy: v1alpha1.RolloutStrategy{
+							Canary: &v1alpha1.CanaryStrategy{
+								StableService: mocks.StableServiceName,
+								CanaryService: mocks.CanaryServiceName,
+							},
+						},
+					},
+				},
+				desiredWeight: 50,
+			},
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":500},{"name":"argo-rollouts-canary","port":0,"weight":500}]}]}}`),
+			wantPatchType: k8stypes.MergePatchType,
+			wantErr:       false,
+		},
+		{
+			name: "Multiple services",
 			args: args{
 				httpProxy: &contourv1.HTTPProxy{
 					ObjectMeta: metav1.ObjectMeta{
@@ -281,7 +439,7 @@ func Test_createPatch(t *testing.T) {
 			wantErr:       false,
 		},
 		{
-			name: "test create http proxy patch",
+			name: "Multiple routes",
 			args: args{
 				httpProxy: &contourv1.HTTPProxy{
 					ObjectMeta: metav1.ObjectMeta{
@@ -309,15 +467,15 @@ func Test_createPatch(t *testing.T) {
 								Services: []contourv1.Service{
 									{
 										Name:   mocks.StableServiceName,
-										Weight: 70,
+										Weight: 7,
 									},
 									{
 										Name:   mocks.CanaryServiceName,
-										Weight: 10,
+										Weight: 1,
 									},
 									{
 										Name:   "others-service",
-										Weight: 20,
+										Weight: 2,
 									},
 								},
 							},
@@ -336,12 +494,12 @@ func Test_createPatch(t *testing.T) {
 				},
 				desiredWeight: 50,
 			},
-			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":45},{"name":"argo-rollouts-canary","port":0,"weight":45},{"name":"others-service","port":0,"weight":10}]},{"services":[{"name":"argo-rollouts-stable","port":0,"weight":40},{"name":"argo-rollouts-canary","port":0,"weight":40},{"name":"others-service","port":0,"weight":20}]}]}}`),
+			want:          []byte(`{"spec":{"routes":[{"services":[{"name":"argo-rollouts-stable","port":0,"weight":45},{"name":"argo-rollouts-canary","port":0,"weight":45},{"name":"others-service","port":0,"weight":10}]},{"services":[{"name":"argo-rollouts-stable","port":0,"weight":400},{"name":"argo-rollouts-canary","port":0,"weight":400},{"name":"others-service","port":0,"weight":200}]}]}}`),
 			wantPatchType: k8stypes.MergePatchType,
 			wantErr:       false,
 		},
 		{
-			name: "test create http proxy mirror patch",
+			name: "Mirror",
 			args: args{
 				httpProxy: &contourv1.HTTPProxy{
 					ObjectMeta: metav1.ObjectMeta{
